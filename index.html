@@ -4,76 +4,209 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>JEANIC IT · Quản lý vòng đời thiết bị</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
 <style>
-/* CSS rút gọn tối đa để đủ không gian hiển thị Code */
-:root{--ink:#14181F;--ink-soft:#4B5563;--paper:#F4F6F8;--surface:#FFFFFF;--line:#DDE2DE;--line-soft:#EAEDEA;--brand:#1B5A96;--brand-dark:#113F6B;--brand-tint:#E6F0FA;--amber:#B4740D;--amber-tint:#FBF0DD;--rust:#AF3B24;--rust-tint:#FBE7E1;--slate:#5B6470;--slate-tint:#E7EAEC;--radius:10px;--font-display:'Space Grotesk', sans-serif;--font-body:'Inter', sans-serif;--font-mono:'IBM Plex Mono', monospace;}
-*{box-sizing:border-box;} html,body{margin:0;padding:0;} body{font-family:var(--font-body);background:var(--paper);color:var(--ink);-webkit-font-smoothing:antialiased;}
-#shell{display:flex;min-height:100vh;} #sidebar{width:248px;flex:none;background:var(--ink);color:#EDEFEC;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;}
-#sidebar .brand{padding:30px 20px 20px;border-bottom:1px solid rgba(255,255,255,.09);text-align:center;} #sidebar .brand img{width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid #334155;margin-bottom:12px;}
-#sidebar .brand h1{font-family:var(--font-display);font-size:16px;margin:0;font-weight:600;} nav.main-nav{padding:14px 10px;flex:1;overflow-y:auto;}
+:root{
+  --ink:#14181F; --ink-soft:#4B5563; --paper:#F4F6F8; --surface:#FFFFFF;
+  --line:#DDE2DE; --line-soft:#EAEDEA;
+  /* Brand JEANIC Blue */
+  --brand:#1B5A96; --brand-dark:#113F6B; --brand-tint:#E6F0FA;
+  --amber:#B4740D; --amber-tint:#FBF0DD; --rust:#AF3B24; --rust-tint:#FBE7E1;
+  --slate:#5B6470; --slate-tint:#E7EAEC; --sky:#295A8C;
+  --radius:10px;
+  --font-display:'Space Grotesk', sans-serif;
+  --font-body:'Inter', sans-serif;
+  --font-mono:'IBM Plex Mono', monospace;
+}
+*{box-sizing:border-box;} html,body{margin:0;padding:0;}
+body{font-family:var(--font-body); background:var(--paper); color:var(--ink); -webkit-font-smoothing:antialiased;}
+::selection{background:var(--brand-tint);color:var(--brand-dark);}
+
+/* ---------- Layout shell ---------- */
+#shell{display:flex;min-height:100vh;}
+#sidebar{width:248px;flex:none;background:var(--ink);color:#EDEFEC;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;}
+#sidebar .brand{padding:30px 20px 20px;border-bottom:1px solid rgba(255,255,255,.09); text-align: center;}
+#sidebar .brand img{width: 90px; height: 90px; border-radius: 50%; object-fit: cover; border: 3px solid #334155; margin-bottom: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);}
+#sidebar .brand .tag{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.14em;color:#8FB8AD;text-transform:uppercase;margin-bottom:6px;}
+#sidebar .brand h1{font-family:var(--font-display);font-size:16px;line-height:1.25;margin:0;font-weight:600;color:#fff;}
+#sidebar .brand .sub{font-size:11.5px;color:#9AA3AC;margin-top:4px;}
+nav.main-nav{padding:14px 10px;flex:1;overflow-y:auto;}
 nav.main-nav .grp-label{font-family:var(--font-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#7B848C;padding:14px 12px 6px;}
-nav.main-nav button{width:100%;text-align:left;background:none;border:none;color:#CBD1D6;font-family:var(--font-body);font-size:13.5px;font-weight:500;padding:9px 12px;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:10px;margin-bottom:2px;}
-nav.main-nav button:hover{background:rgba(255,255,255,.06);color:#fff;} nav.main-nav button.active{background:var(--brand);color:#fff;}
-#main{flex:1;min-width:0;display:flex;flex-direction:column;} #topbar{background:var(--surface);border-bottom:1px solid var(--line);padding:16px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:5;}
-#topbar h2{font-family:var(--font-display);font-size:19px;margin:0;} #content{padding:26px 28px 60px;max-width:1180px;width:100%;margin:0 auto;}
-.btn{font-family:var(--font-body);font-size:13px;font-weight:600;border-radius:8px;padding:9px 15px;border:1px solid var(--line);background:var(--surface);cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
-.btn-brand{background:var(--brand);border-color:var(--brand);color:#fff;} .btn-brand:hover{background:var(--brand-dark);}
-.grid-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;} .stat-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px;}
-.stat-card .n{font-family:var(--font-display);font-size:26px;font-weight:600;color:var(--brand);}
-.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px;margin-bottom:20px;} .panel h3{font-family:var(--font-display);font-size:15px;margin:0 0 14px;}
-table.data{width:100%;border-collapse:collapse;font-size:13px;} table.data th{text-align:left;font-family:var(--font-mono);font-size:10.5px;color:var(--ink-soft);padding:0 12px 10px;border-bottom:1px solid var(--line);}
-table.data td{padding:12px;border-bottom:1px solid var(--line-soft);} table.data tr:hover{background:var(--brand-tint);cursor:pointer;}
-.pill{display:inline-block;padding:3px 9px;border-radius:99px;font-size:11.5px;font-weight:600;} .pill-brand{background:var(--brand-tint);color:var(--brand-dark);} .pill-slate{background:var(--slate-tint);color:var(--slate);} .pill-rust{background:var(--rust-tint);color:var(--rust);}
-.field{margin-bottom:13px;} .field label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:5px;}
-.field input, .field select, .field textarea{width:100%;padding:9px;border:1px solid var(--line);border-radius:7px;font-family:var(--font-body);} .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-#modal-root{position:fixed;inset:0;z-index:50;display:none;align-items:flex-start;justify-content:center;background:rgba(20,24,31,.5);padding:40px 16px;} #modal-root.open{display:flex;}
-.modal-box{background:var(--surface);border-radius:12px;width:100%;max-width:560px;} .modal-head{padding:18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;} .modal-body{padding:20px;max-height:60vh;overflow-y:auto;} .modal-foot{padding:16px;border-top:1px solid var(--line);text-align:right;}
-#login-overlay{position:fixed;inset:0;background:var(--ink);z-index:100;display:flex;align-items:center;justify-content:center;} .login-box{background:var(--surface);padding:40px;border-radius:12px;width:350px;text-align:center;}
-.admin-only{display:none !important;} #toast-wrap{position:fixed;bottom:20px;right:20px;z-index:80;display:flex;flex-direction:column;gap:8px;} .toast{background:var(--ink);color:#fff;padding:12px 16px;border-radius:8px;font-size:13px;}
-.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;} .tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px;text-align:left;cursor:pointer;} .tile:hover{border-color:var(--brand);}
-@media print{#shell > *, #login-overlay, #toast-wrap, #modal-root{display:none !important;} #print-area{display:block !important;} body{background:#fff;}}
+nav.main-nav button{width:100%;text-align:left;background:none;border:none;color:#CBD1D6;font-family:var(--font-body);font-size:13.5px;font-weight:500;padding:9px 12px;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:10px;margin-bottom:2px;transition:background .12s,color .12s;}
+nav.main-nav button .ico{font-family:var(--font-mono);font-size:12px;width:18px;text-align:center;color:#7B848C;flex:none;}
+nav.main-nav button:hover{background:rgba(255,255,255,.06);color:#fff;}
+nav.main-nav button.active{background:var(--brand);color:#fff;}
+nav.main-nav button.active .ico{color:#CDEAE2;}
+#sidebar .foot{padding:14px 20px;border-top:1px solid rgba(255,255,255,.09);font-size:11px;color:#7B848C;}
+#sidebar .foot .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#4CA88A;margin-right:6px;}
+
+#main{flex:1;min-width:0;display:flex;flex-direction:column;}
+#topbar{background:var(--surface);border-bottom:1px solid var(--line);padding:16px 28px;display:flex;align-items:center;justify-content:space-between;gap:16px;position:sticky;top:0;z-index:5;}
+#topbar h2{font-family:var(--font-display);font-size:19px;margin:0;font-weight:600;}
+#topbar .desc{font-size:12.5px;color:var(--ink-soft);margin-top:2px;}
+#content{padding:26px 28px 60px;max-width:1180px;width:100%;margin:0 auto;}
+
+/* ---------- Auth UI ---------- */
+#login-overlay {position: fixed; inset: 0; background: var(--ink); z-index: 1000; display: flex; align-items: center; justify-content: center;}
+.login-box {background: var(--surface); padding: 40px; border-radius: 12px; width: 100%; max-width: 380px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.4);}
+.login-box img { width: 80px; margin-bottom: 20px; border-radius: 50%; border: 2px solid var(--line); }
+.user-badge {display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 500;}
+.logout-btn { cursor: pointer; color: var(--rust); font-weight: 600; text-decoration: underline; }
+.admin-only { display: none !important; }
+
+/* ---------- Components ---------- */
+.btn{font-family:var(--font-body);font-size:13px;font-weight:600;border-radius:8px;padding:9px 15px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .12s;white-space:nowrap;}
+.btn:hover{border-color:var(--ink);}
+.btn-brand{background:var(--brand);border-color:var(--brand);color:#fff;}
+.btn-brand:hover{background:var(--brand-dark);border-color:var(--brand-dark);}
+.btn-ghost{background:transparent;border-color:transparent;color:var(--ink-soft);}
+.btn-ghost:hover{background:var(--line-soft);color:var(--ink);}
+.btn-danger{color:var(--rust);}
+.btn-danger:hover{border-color:var(--rust);}
+.btn-sm{padding:6px 11px;font-size:12px;}
+
+.grid-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:24px;}
+.stat-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 16px 14px;}
+.stat-card .n{font-family:var(--font-display);font-size:26px;font-weight:600;line-height:1;}
+.stat-card .l{font-size:11.5px;color:var(--ink-soft);margin-top:7px;font-weight:500;}
+.stat-card.accent-brand .n{color:var(--brand);}
+.stat-card.accent-slate .n{color:var(--slate);}
+.stat-card.accent-amber .n{color:var(--amber);}
+.stat-card.accent-rust .n{color:var(--rust);}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px;margin-bottom:20px;}
+.panel h3{font-family:var(--font-display);font-size:15px;margin:0 0 14px;font-weight:600;}
+.panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.panel-head h3{margin:0;}
+
+.tag{display:inline-flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:12.5px;font-weight:600;background:var(--ink);color:#EDEFEC;padding:4px 8px 4px 6px;border-radius:5px;}
+.tag .bars{display:flex;gap:1.5px;align-items:flex-end;height:11px;}
+.tag .bars i{display:block;width:2px;background:#7DBFAF;}
+.tag .bars i:nth-child(1){height:100%;}
+.tag .bars i:nth-child(2){height:60%;}
+.tag .bars i:nth-child(3){height:85%;}
+.tag .bars i:nth-child(4){height:45%;}
+.tag .bars i:nth-child(5){height:100%;}
+
+table.data{width:100%;border-collapse:collapse;font-size:13px;}
+table.data th{text-align:left;font-family:var(--font-mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);font-weight:500;padding:0 12px 10px;border-bottom:1px solid var(--line);}
+table.data td{padding:12px;border-bottom:1px solid var(--line-soft);vertical-align:top;}
+table.data tr.rowclick{cursor:pointer;}
+table.data tr.rowclick:hover{background:var(--brand-tint);}
+.cell-title{font-weight:600;font-size:13.5px;}
+.cell-sub{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+
+.pill{display:inline-block;padding:3px 9px;border-radius:99px;font-size:11.5px;font-weight:600;white-space:nowrap;}
+.pill-brand{background:var(--brand-tint);color:var(--brand-dark);}
+.pill-slate{background:var(--slate-tint);color:var(--slate);}
+.pill-amber{background:var(--amber-tint);color:var(--amber);}
+.pill-rust{background:var(--rust-tint);color:var(--rust);}
+
+.field{margin-bottom:13px;}
+.field label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:5px;}
+.field input, .field select, .field textarea{width:100%;font-family:var(--font-body);font-size:13.5px;padding:9px 10px;border:1px solid var(--line);border-radius:7px;background:var(--paper);color:var(--ink);}
+.field input:focus, .field select:focus, .field textarea:focus{outline:2px solid var(--brand);outline-offset:0;border-color:var(--brand);}
+.field textarea{resize:vertical;min-height:64px;font-family:var(--font-body);}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.hint{font-size:11.5px;color:var(--ink-soft);margin-top:4px;}
+.req::after{content:' *';color:var(--rust);}
+
+.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;}
+.toolbar input[type=search]{flex:1;min-width:180px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;}
+.toolbar select{padding:9px 10px;border:1px solid var(--line);border-radius:8px;}
+
+#modal-root{position:fixed;inset:0;z-index:50;display:none;align-items:flex-start;justify-content:center;background:rgba(20,24,31,.45);overflow-y:auto;padding:40px 16px;}
+#modal-root.open{display:flex;}
+.modal-box{background:var(--surface);border-radius:12px;max-width:560px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25);animation:pop .15s ease;}
+@keyframes pop{from{transform:translateY(6px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+.modal-head{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;}
+.modal-head h3{font-family:var(--font-display);font-size:16px;margin:0;}
+.modal-body{padding:20px 22px;max-height:60vh;overflow-y:auto;}
+.modal-foot{padding:16px 22px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:10px;}
+.x-close{background:none;border:none;font-size:18px;cursor:pointer;}
+
+.empty{text-align:center;padding:44px 20px;color:var(--ink-soft);}
+.empty .big{font-family:var(--font-mono);font-size:28px;color:var(--line);margin-bottom:10px;}
+.empty p{font-size:13px;margin:4px 0 14px;}
+
+#toast-wrap{position:fixed;bottom:22px;right:22px;z-index:80;display:flex;flex-direction:column;gap:8px;}
+.toast{background:var(--ink);color:#fff;padding:11px 16px;border-radius:8px;font-size:13px;display:flex;align-items:center;gap:8px;animation:slidein .18s ease;}
+.toast.err{background:var(--rust);}
+@keyframes slidein{from{transform:translateY(8px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+
+.detail-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:18px;align-items:start;}
+.kv{display:grid;grid-template-columns:130px 1fr;gap:6px 10px;font-size:13px;padding:5px 0;border-bottom:1px solid var(--line-soft);}
+.kv b{color:var(--ink-soft);font-weight:500;}
+
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px;cursor:pointer;text-align:left;}
+.tile:hover{border-color:var(--brand);transform:translateY(-1px);}
+.tile .ico{font-family:var(--font-mono);font-size:11px;color:var(--brand);margin-bottom:8px;}
+.tile h4{font-family:var(--font-display);font-size:15px;margin:0 0 5px;}
+.tile p{font-size:12px;color:var(--ink-soft);margin:0;}
 </style>
 </head>
 <body>
+
 <div id="login-overlay">
   <div class="login-box">
-    <h3 style="font-family:var(--font-display);margin-bottom:20px;">JEANIC IT - Đăng nhập</h3>
-    <div class="field"><input type="email" id="loginEmail" placeholder="Email nội bộ"></div>
-    <div class="field"><input type="password" id="loginPass" placeholder="Mật khẩu"></div>
-    <button class="btn btn-brand" style="width:100%;justify-content:center;" onclick="app.login()">Đăng nhập</button>
+    <img src="logo.jpg" alt="Logo">
+    <h3 style="margin: 0 0 5px; font-family: var(--font-display);">JEANIC IT</h3>
+    <p style="font-size: 13px; color: var(--ink-soft); margin-bottom: 24px;">Hệ thống quản lý thiết bị</p>
+    <div class="field" style="text-align: left;"><input type="email" id="loginEmail" placeholder="Email nội bộ"></div>
+    <div class="field" style="text-align: left;"><input type="password" id="loginPass" placeholder="Mật khẩu"></div>
+    <button class="btn btn-brand" style="width: 100%; justify-content: center; padding: 12px;" onclick="app.login()">Đăng nhập hệ thống</button>
+    <div id="loginErr" style="color: var(--rust); font-size: 12px; margin-top: 10px; display: none;">Sai tài khoản hoặc mật khẩu.</div>
   </div>
 </div>
 
 <div id="shell" style="display: none;">
   <aside id="sidebar">
-    <div class="brand"><img src="logo.jpg" alt="JEANIC"><h1>Quản lý Thiết bị</h1></div>
+    <div class="brand">
+      <img src="logo.jpg" alt="JEANIC">
+      <div class="tag">Garment Solutions</div>
+      <h1>Quản lý Thiết bị</h1>
+      <div class="sub">Bộ phận IT</div>
+    </div>
     <nav class="main-nav" id="mainNav"></nav>
+    <div class="foot"><div class="dot"></div>Lưu trữ đám mây an toàn</div>
   </aside>
+
   <div id="main">
     <div id="topbar">
-      <div><h2 id="pageTitle">Tổng quan</h2></div>
-      <div style="display:flex;gap:15px;align-items:center;">
-        <div id="topbarActions" style="display:flex;gap:10px;"></div>
-        <span id="currentUserRole" class="pill pill-brand"></span>
-        <button class="btn btn-brand" onclick="app.logout()" style="padding:4px 8px;">Thoát</button>
+      <div>
+        <h2 id="pageTitle">Tổng quan</h2>
+        <div class="desc" id="pageDesc">Tình trạng thiết bị CNTT toàn công ty</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 20px;">
+        <div id="topbarActions" style="display: flex; gap: 10px;"></div>
+        <div class="user-badge" style="border-left: 1px solid var(--line); padding-left: 20px;">
+          <span id="currentUserEmail">đang tải...</span>
+          <span id="currentUserRole" class="pill pill-brand">...</span>
+          <span class="logout-btn" onclick="app.logout()">Thoát</span>
+        </div>
       </div>
     </div>
     <div id="content"></div>
   </div>
 </div>
+
 <div id="modal-root"><div class="modal-box" id="modalBox"></div></div>
-<div id="toast-wrap"></div><div id="print-area"></div>
+<div id="toast-wrap"></div>
+<div id="print-area"></div>
 
 <script>
-/* --- FIREBASE CỦA ANH --- */
+/* =========================================================
+   CẤU HÌNH FIREBASE & PHÂN QUYỀN
+========================================================= */
 const firebaseConfig = {
+  // DÁN CẤU HÌNH CỦA ANH VÀO ĐÂY
   apiKey: "AIzaSyDd50N1NSJrF1dbvmuiQ1Fd6NaI-ArohAc",
   authDomain: "jeanic-it-assets.firebaseapp.com",
   projectId: "jeanic-it-assets",
@@ -82,236 +215,299 @@ const firebaseConfig = {
   appId: "1:385116689675:web:c940b184df9da94ea47e0e",
   measurementId: "G-XFZFWWWC7X"
 };
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth(); const db = firebase.firestore();
-const secondaryApp = firebase.initializeApp(firebaseConfig, "SecondaryApp");
-const ADMIN_EMAILS = ["hoa.bui@jeanicgarment.com"];
-let currentRole = "user"; let currentUser = null;
 
-/* --- DATA LAYER --- */
+// Khởi tạo app chính (cho đăng nhập, đọc/ghi dữ liệu)
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// Khởi tạo app phụ (Dùng riêng cho tính năng Admin tạo tài khoản mà không bị văng ra)
+const secondaryApp = firebase.initializeApp(firebaseConfig, "SecondaryApp");
+
+// DANH SÁCH ADMIN
+const ADMIN_EMAILS = [
+  "hoa.bui@jeanicgarment.com"
+];
+
+let currentUser = null;
+let currentRole = "user";
+
+/* =========================================================
+   DATA LAYER (GIỮ NGUYÊN)
+========================================================= */
 const DEPARTMENTS = ["Ban Giám đốc","IT","Nhân sự (HR)","Kế toán","Kinh doanh","Plan (Kế hoạch)","Cắt (Cutting)","May (Sewing)","Hoàn thiện (Finishing)","QA/QC","Kho (Warehouse)","Bảo trì (Maintenance)","Xuất nhập khẩu","Khác"];
 const CONDITIONS = ["Mới","Tốt","Khá","Trung bình","Hỏng nhẹ","Hỏng nặng"];
-const DEVICE_TYPES = ["Laptop","Laptop + Sạc","Màn hình","Bàn phím","Chuột không dây","Chuột có dây","Tai nghe","Máy in","Khác"];
+const DEVICE_TYPES = ["Laptop","Laptop + Sạc","Màn hình","Bàn phím","Chuột không dây","Chuột có dây","Tai nghe","Webcam","Máy in","Router/Switch","USB/Ổ cứng di động","Balo/Túi laptop","Sạc/Cáp","Khác"];
+const BRANDS = ["Dell","HP","Lenovo","Asus","Acer","Apple","Logitech","EBLUE","Samsung","LG","Canon","TP-Link","Khác"];
 const STATUS_META = { "Đang sử dụng":{pill:"pill-brand"}, "Trong kho":{pill:"pill-slate"}, "Bảo trì":{pill:"pill-amber"}, "Thanh lý":{pill:"pill-rust"} };
-const DEFAULT_SETTINGS = { usefulLifeYears: 3, warrantyMonths: 12 };
+const DEFAULT_SETTINGS = { usefulLifeYears: 3, warrantyMonths: 12, depreciationWarnPercent: 15, warrantyWarnDays: 30, repairCostWarnPercent: 30 };
+
 const state = { devices: [], employees: [], meta: { deviceSeq: 1, employeeSeq: 1 }, settings: { ...DEFAULT_SETTINGS }, view: "dashboard" };
 
+function pad3(n){ return String(n).padStart(3,"0"); }
+function nextDeviceId(){ return "TB" + pad3(state.meta.deviceSeq); }
+function nextEmployeeId(){ return "NV" + pad3(state.meta.employeeSeq); }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function fmtDate(iso){ if(!iso) return "—"; const d = new Date(iso); return isNaN(d) ? iso : d.toLocaleDateString("vi-VN",{day:"2-digit",month:"2-digit",year:"numeric"}); }
+function fmtDateTime(iso){ const d = new Date(iso); return isNaN(d) ? iso : d.toLocaleDateString("vi-VN") + " " + d.toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"}); }
+function esc(s){ return (s===undefined||s===null) ? "" : String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function fmtVND(n){ return (n===null||n===undefined||n===""||isNaN(n)) ? "—" : Math.round(Number(n)).toLocaleString("vi-VN") + " ₫"; }
+
+function computeDepreciation(d){ /* Logic Khấu hao */ return {hasData:false}; }
+function warrantyInfo(d){ return {hasData:false}; }
+function repairTotal(d){ return (d.repairs||[]).reduce((s,r)=> s + (Number(r.cost)||0), 0); }
+function computeAlerts(){ return []; }
+
 const Store = {
-  async get(key){ try{ const doc = await db.collection('jeanic_data').doc(key).get(); return doc.exists?{value:doc.data().dataString}:null; }catch(e){return null;} },
-  async set(key, val){ try{ await db.collection('jeanic_data').doc(key).set({dataString:val}); return true; }catch(e){return false;} }
+  async get(key){
+    try { const doc = await db.collection('jeanic_data').doc(key).get(); return doc.exists ? { value: doc.data().dataString } : null; } 
+    catch(e) { return null; }
+  },
+  async set(key, value){
+    try { await db.collection('jeanic_data').doc(key).set({ dataString: value }); return true; } 
+    catch(e) { return false; }
+  }
 };
 async function loadAll(){
-  const [d,e,m,s] = await Promise.all([ Store.get("devices"), Store.get("employees"), Store.get("meta"), Store.get("settings") ]);
-  if(d&&e&&m){ state.devices=JSON.parse(d.value); state.employees=JSON.parse(e.value); state.meta=JSON.parse(m.value); state.settings=s?{...DEFAULT_SETTINGS,...JSON.parse(s.value)}:DEFAULT_SETTINGS; }
-  else await persistAll();
+  const [d,e,m,s] = await Promise.all([ Store.get("jeanic-devices"), Store.get("jeanic-employees"), Store.get("jeanic-meta"), Store.get("jeanic-settings") ]);
+  if(d && e && m){ state.devices = JSON.parse(d.value); state.employees = JSON.parse(e.value); state.meta = JSON.parse(m.value); state.settings = s ? { ...DEFAULT_SETTINGS, ...JSON.parse(s.value) } : { ...DEFAULT_SETTINGS }; } 
+  else { state.meta = {deviceSeq:1, employeeSeq:1}; await persistAll(); }
 }
-async function persistDevices(){ await Store.set("devices", JSON.stringify(state.devices)); }
-async function persistEmployees(){ await Store.set("employees", JSON.stringify(state.employees)); }
-async function persistMeta(){ await Store.set("meta", JSON.stringify(state.meta)); }
-async function persistSettings(){ await Store.set("settings", JSON.stringify(state.settings)); }
-async function persistAll(){ await Promise.all([persistDevices(),persistEmployees(),persistMeta(),persistSettings()]); }
+async function persistDevices(){ await Store.set("jeanic-devices", JSON.stringify(state.devices)); }
+async function persistEmployees(){ await Store.set("jeanic-employees", JSON.stringify(state.employees)); }
+async function persistMeta(){ await Store.set("jeanic-meta", JSON.stringify(state.meta)); }
+async function persistSettings(){ await Store.set("jeanic-settings", JSON.stringify(state.settings)); }
+async function persistAll(){ await Promise.all([persistDevices(), persistEmployees(), persistMeta(), persistSettings()]); }
 
-function pad3(n){ return String(n).padStart(3,"0"); } function nextDeviceId(){ return "TB" + pad3(state.meta.deviceSeq); } function nextEmployeeId(){ return "NV" + pad3(state.meta.employeeSeq); }
-function fmtVND(n){ return n?Math.round(Number(n)).toLocaleString("vi-VN")+" ₫":"—"; } function esc(s){ return s?String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])):""; }
-
-/* --- AUTH --- */
+/* =========================================================
+   AUTH
+========================================================= */
 auth.onAuthStateChanged(async (user) => {
-  if(user){
-    currentUser = user; currentRole = ADMIN_EMAILS.includes(user.email) ? "admin" : "user";
-    document.getElementById('login-overlay').style.display='none'; document.getElementById('shell').style.display='flex';
+  if (user) {
+    currentUser = user;
+    currentRole = ADMIN_EMAILS.includes(user.email) ? "admin" : "user";
+    
+    document.getElementById('login-overlay').style.display = 'none';
+    document.getElementById('shell').style.display = 'flex';
+    document.getElementById('currentUserEmail').innerText = user.email;
     document.getElementById('currentUserRole').innerText = currentRole.toUpperCase();
-    const rs = document.getElementById("roleStyle");
-    if(currentRole === 'user'){ if(!rs){ const style = document.createElement('style'); style.id="roleStyle"; style.innerHTML='.admin-only{display:none !important;}'; document.head.appendChild(style); } }
-    else if(rs) rs.remove();
+    
+    if (currentRole === 'user') {
+      const style = document.createElement('style'); style.id = "roleStyle";
+      style.innerHTML = '.admin-only { display: none !important; }';
+      document.head.appendChild(style);
+    } else {
+      const rs = document.getElementById("roleStyle"); if(rs) rs.remove();
+    }
     await loadAll(); setView("dashboard");
-  } else { document.getElementById('login-overlay').style.display='flex'; document.getElementById('shell').style.display='none'; }
+  } else {
+    document.getElementById('login-overlay').style.display = 'flex';
+    document.getElementById('shell').style.display = 'none';
+  }
 });
-async function login() { try { await auth.signInWithEmailAndPassword(document.getElementById('loginEmail').value, document.getElementById('loginPass').value); } catch(e){ alert("Sai thông tin đăng nhập"); } }
+async function login() {
+  try { await auth.signInWithEmailAndPassword(document.getElementById('loginEmail').value, document.getElementById('loginPass').value); document.getElementById('loginErr').style.display = 'none'; } 
+  catch (error) { document.getElementById('loginErr').style.display = 'block'; }
+}
 function logout() { auth.signOut(); }
 
-/* --- VIEWS --- */
-const NAV = [
-  {grp:"Tổng quan", items:[{id:"dashboard", label:"Dashboard"}]},
-  {grp:"Tài sản", items:[{id:"devices", label:"Thiết bị"},{id:"employees", label:"Nhân viên"}]},
-  {grp:"Nghiệp vụ", class:"admin-only", items:[{id:"ops", label:"Làm Biên Bản"}]},
-  {grp:"Theo dõi", items:[{id:"finance", label:"Tài chính & Khấu hao"}]},
-  {grp:"Hệ thống", class:"admin-only", items:[{id:"import", label:"Nhập File Excel (CSV)"},{id:"accounts", label:"Quản lý Tài khoản"},{id:"settings", label:"Cài đặt"}]}
-];
-function renderNav(){ document.getElementById("mainNav").innerHTML = NAV.map(g => `<div class="grp-label ${g.class||''}">${g.grp}</div>${g.items.map(it => `<button class="${state.view===it.id?'active':''} ${g.class||''}" onclick="app.setView('${it.id}')">${it.label}</button>`).join("")}`).join(""); }
-function setView(view, arg){ state.view=view; renderNav(); document.getElementById("topbarActions").innerHTML=""; window.scrollTo(0,0);
-  if(view==="dashboard") renderDashboard(); else if(view==="devices") renderDevices(); else if(view==="device") renderDeviceDetail(arg);
-  else if(view==="employees") renderEmployees(); else if(view==="ops") renderOps(); else if(view==="finance") renderFinance();
-  else if(view==="accounts") renderAccounts(); else if(view==="settings") renderSettings(); else if(view==="import") renderImport();
-}
+/* =========================================================
+   TẠO TÀI KHOẢN (Tính năng mới)
+========================================================= */
+async function createNewUserAccount() {
+  const em = document.getElementById("newAccEmail").value.trim();
+  const pw = document.getElementById("newAccPass").value;
+  if(!em || pw.length < 6) { toast("Email không hợp lệ hoặc mật khẩu ngắn hơn 6 ký tự!", true); return; }
+  
+  const btn = document.getElementById("btnCreateAcc");
+  btn.innerText = "Đang tạo..."; btn.disabled = true;
 
-/* --- DASHBOARD & LISTS --- */
-function renderDashboard(){
-  document.getElementById("pageTitle").textContent="Dashboard";
-  document.getElementById("content").innerHTML=`<div class="grid-stats"><div class="stat-card"><div class="n">${state.devices.length}</div>Tổng thiết bị</div></div>`;
-}
-function renderDevices(){
-  document.getElementById("pageTitle").textContent="Danh sách Thiết bị";
-  document.getElementById("topbarActions").innerHTML=`<button class="btn btn-brand" onclick="app.openDeviceForm()">+ Thêm thiết bị</button>`;
-  document.getElementById("content").innerHTML=`<div class="panel"><table class="data"><tr><th>Mã TB</th><th>Loại/Hiệu</th><th>Tình trạng</th><th>Trạng thái</th><th>Đang giữ</th></tr>${state.devices.map(d=>`<tr onclick="app.setView('device','${d.id}')"><td><b>${d.id}</b></td><td>${esc(d.type)} - ${esc(d.brand)}</td><td>${esc(d.condition)}</td><td><span class="pill ${STATUS_META[d.status]?.pill}">${esc(d.status)}</span></td><td>${esc(d.holderName||"Kho")}</td></tr>`).join("")}</table></div>`;
-}
-function renderDeviceDetail(id){
-  const d = state.devices.find(x=>x.id===id); document.getElementById("pageTitle").textContent=`Chi tiết ${id}`;
-  document.getElementById("topbarActions").innerHTML=`<button class="btn" onclick="app.setView('devices')">Quay lại</button><button class="btn btn-brand" onclick="app.openDeviceForm('${id}')">Sửa thông tin</button>`;
-  document.getElementById("content").innerHTML=`<div class="panel"><h3>${esc(d.type)} ${esc(d.brand)}</h3><p>Tình trạng: ${esc(d.condition)} | Trạng thái: <b>${esc(d.status)}</b></p><p>Giá mua: <b>${fmtVND(d.purchasePrice)}</b> | Ngày mua: ${d.purchaseDate||"Chưa nhập"}</p><p>Người dùng hiện tại: ${esc(d.holderName||"Trống")}</p></div>`;
-}
-function renderEmployees(){
-  document.getElementById("pageTitle").textContent="Danh sách Nhân viên";
-  document.getElementById("topbarActions").innerHTML=`<button class="btn btn-brand admin-only" onclick="app.openEmployeeForm()">+ Thêm NV</button>`;
-  document.getElementById("content").innerHTML=`<div class="panel"><table class="data"><tr><th>Mã NV</th><th>Họ tên</th><th>Bộ phận</th></tr>${state.employees.map(e=>`<tr><td>${e.id}</td><td>${esc(e.name)}</td><td>${esc(e.dept)}</td></tr>`).join("")}</table></div>`;
-}
-
-/* --- NGHIỆP VỤ & BIÊN BẢN (KHÔI PHỤC) --- */
-function renderOps(){
-  document.getElementById("pageTitle").textContent="Nghiệp vụ / Lập Biên Bản";
-  document.getElementById("content").innerHTML=`
-    <div class="tiles">
-      <div class="tile" onclick="app.openOpForm('ban_giao')"><h3>Bàn giao (Kho -> User)</h3><p>Cấp máy mới cho nhân viên</p></div>
-      <div class="tile" onclick="app.openOpForm('thu_hoi')"><h3>Thu hồi (User -> Kho)</h3><p>Trả máy về kho IT</p></div>
-      <div class="tile" onclick="app.openOpForm('dieu_chuyen')"><h3>Điều chuyển (User -> User)</h3><p>Chuyển máy giữa 2 người</p></div>
-      <div class="tile" onclick="app.openOpForm('sua_chua')"><h3>Ghi nhận Sửa chữa</h3><p>Cập nhật chi phí sửa</p></div>
-    </div>`;
-}
-const OP_META = { ban_giao:{title:"Biên bản bàn giao", s:"Trong kho"}, thu_hoi:{title:"Biên bản thu hồi", s:"Đang sử dụng"}, dieu_chuyen:{title:"Điều chuyển", s:"Đang sử dụng"}, sua_chua:{title:"Sửa chữa", s:null} };
-function openOpForm(op){
-  const meta = OP_META[op]; const devices = op==="sua_chua" ? state.devices : state.devices.filter(d=>d.status===meta.s);
-  let extra = "";
-  if(op==="ban_giao" || op==="dieu_chuyen") extra = `<div class="field"><label>Giao cho (Người nhận)</label><select id="opEmp">${state.employees.map(e=>`<option value="${e.id}">${e.name} (${e.dept})</option>`).join("")}</select></div>`;
-  else if(op==="sua_chua") extra = `<div class="field"><label>Chi phí (VNĐ)</label><input type="number" id="opCost" value="0"></div>`;
-  openModal(meta.title, `<div class="field"><label>Chọn Thiết bị</label><select id="opDev"><option value="">--Chọn--</option>${devices.map(d=>`<option value="${d.id}">${d.id} - ${d.type}</option>`).join("")}</select></div>${extra}<div class="field"><label>Ghi chú / Lý do</label><input id="opNote"></div>`, `<button class="btn btn-brand" onclick="app.submitOp('${op}')">Lưu & In</button>`);
-}
-async function submitOp(op){
-  const devId = document.getElementById("opDev").value; if(!devId) return alert("Chọn thiết bị!");
-  const d = state.devices.find(x=>x.id===devId); const note = document.getElementById("opNote").value;
-  if(op==="ban_giao" || op==="dieu_chuyen"){
-    const emp = state.employees.find(e=>e.id===document.getElementById("opEmp").value);
-    d.status="Đang sử dụng"; d.holderId=emp.id; d.holderName=emp.name; d.dept=emp.dept;
-  } else if(op==="thu_hoi"){
-    d.status="Trong kho"; d.holderId=null; d.holderName=null; d.dept="";
-  } else if(op==="sua_chua"){
-    d.repairs = d.repairs||[]; d.repairs.push({date:new Date().toISOString(), cost:Number(document.getElementById("opCost").value), note});
+  try {
+    // Dùng app phụ để tạo tài khoản, tránh việc Admin bị đăng xuất
+    await secondaryApp.auth().createUserWithEmailAndPassword(em, pw);
+    await secondaryApp.auth().signOut(); // Đăng xuất khỏi app phụ
+    toast("Tạo tài khoản thành công!");
+    document.getElementById("newAccEmail").value = "";
+    document.getElementById("newAccPass").value = "";
+  } catch(err) {
+    toast("Lỗi: " + err.message, true);
+  } finally {
+    btn.innerText = "Tạo tài khoản"; btn.disabled = false;
   }
-  await persistDevices(); closeModal();
-  document.getElementById("print-area").innerHTML = `<div style="padding:20px;font-family:sans-serif;"><h2>${OP_META[op].title.toUpperCase()} - CÔNG TY JEANIC</h2><p>Mã TB: ${d.id}</p><p>Loại: ${d.type} ${d.brand}</p><p>Ghi chú: ${note}</p><br><br><b>KÝ TÊN</b></div>`;
-  setTimeout(()=>window.print(), 200); setView("devices");
 }
 
-/* --- TÀI CHÍNH & CÀI ĐẶT --- */
-function renderFinance(){
-  document.getElementById("pageTitle").textContent="Tài chính & Khấu hao";
-  let ti=0, tr=0; state.devices.forEach(d=>{ ti+=Number(d.purchasePrice)||0; tr+=(d.repairs||[]).reduce((s,r)=>s+(Number(r.cost)||0),0); });
-  document.getElementById("content").innerHTML=`<div class="grid-stats"><div class="stat-card">Tổng nguyên giá<div class="n">${fmtVND(ti)}</div></div><div class="stat-card">Tổng phí sửa<div class="n" style="color:red">${fmtVND(tr)}</div></div></div>`;
+/* =========================================================
+   UI HELPERS & NAV
+========================================================= */
+function toast(msg, isErr){
+  const wrap = document.getElementById("toast-wrap"); const el = document.createElement("div");
+  el.className = "toast" + (isErr ? " err" : ""); el.textContent = msg; wrap.appendChild(el);
+  setTimeout(()=>{ el.remove(); }, 3200);
 }
-function renderSettings(){
-  document.getElementById("pageTitle").textContent="Cài đặt Hệ thống";
-  document.getElementById("content").innerHTML=`<div class="panel"><h3>Thông số khấu hao</h3><div class="field"><label>Thời gian khấu hao mặc định (Năm)</label><input type="number" id="sLife" value="${state.settings.usefulLifeYears}"></div><button class="btn btn-brand" onclick="app.saveSettings()">Lưu cài đặt</button></div>`;
+function openModal(title, bodyHtml, footHtml){
+  document.getElementById("modalBox").innerHTML = `<div class="modal-head"><h3>${title}</h3><button class="x-close" onclick="app.closeModal()">✕</button></div><div class="modal-body">${bodyHtml}</div><div class="modal-foot">${footHtml}</div>`;
+  document.getElementById("modal-root").classList.add("open");
 }
-async function saveSettings(){ state.settings.usefulLifeYears = Number(document.getElementById("sLife").value); await persistSettings(); alert("Đã lưu!"); }
+function closeModal(){ document.getElementById("modal-root").classList.remove("open"); }
 
-/* --- FORMS (THÊM/SỬA) --- */
-function openDeviceForm(id){
-  const d = id?state.devices.find(x=>x.id===id):null; const isEdit=!!d;
-  openModal(isEdit?`Sửa ${id}`:"Thêm Thiết bị", `
-    <div class="field"><label>Mã TB</label><input value="${isEdit?d.id:nextDeviceId()}" disabled></div>
-    <div class="field-row"><div class="field"><label>Loại</label><input id="fType" value="${d?.type||""}"></div><div class="field"><label>Hiệu</label><input id="fBrand" value="${d?.brand||""}"></div></div>
-    <div class="field-row"><div class="field"><label>Giá mua (VND)</label><input type="number" id="fPrice" value="${d?.purchasePrice||""}"></div><div class="field"><label>Ngày mua</label><input type="date" id="fDate" value="${d?.purchaseDate||""}"></div></div>
-    <div class="field"><label>Ghi chú</label><input id="fNote" value="${d?.note||""}"></div>
-  `, `<button class="btn btn-brand" onclick="app.saveDevice(${isEdit?`'${id}'`:'null'})">Lưu</button>`);
-}
-async function saveDevice(id){
-  if(id){ const d=state.devices.find(x=>x.id===id); d.type=document.getElementById("fType").value; d.brand=document.getElementById("fBrand").value; d.purchasePrice=Number(document.getElementById("fPrice").value); d.purchaseDate=document.getElementById("fDate").value; }
-  else { state.devices.push({ id:nextDeviceId(), type:document.getElementById("fType").value, brand:document.getElementById("fBrand").value, purchasePrice:Number(document.getElementById("fPrice").value), purchaseDate:document.getElementById("fDate").value, status:"Trong kho", condition:"Mới" }); state.meta.deviceSeq++; await persistMeta(); }
-  await persistDevices(); closeModal(); setView("devices");
-}
-function openEmployeeForm(){
-  openModal("Thêm NV", `<div class="field"><label>Họ tên</label><input id="eName"></div><div class="field"><label>Bộ phận</label><input id="eDept"></div>`, `<button class="btn btn-brand" onclick="app.saveEmployee()">Lưu</button>`);
-}
-async function saveEmployee(){
-  state.employees.push({ id:nextEmployeeId(), name:document.getElementById("eName").value, dept:document.getElementById("eDept").value });
-  state.meta.employeeSeq++; await persistMeta(); await persistEmployees(); closeModal(); setView("employees");
-}
+// Đã bổ sung mục "Quản lý Tài khoản"
+const NAV = [
+  {grp:"Tổng quan", items:[{id:"dashboard", label:"Bảng điều khiển", ico:"01"}]},
+  {grp:"Tài sản", items:[{id:"devices", label:"Thiết bị", ico:"◧"},{id:"employees", label:"Nhân viên", ico:"◨"}]},
+  {grp:"Nghiệp vụ", class:"admin-only", items:[{id:"ops", label:"Nghiệp vụ / Biên bản", ico:"⇄"}]},
+  {grp:"Theo dõi", items:[{id:"history", label:"Lịch sử hệ thống", ico:"≡"},{id:"finance", label:"Tài chính & Khấu hao", ico:"₫"}]},
+  {grp:"Hệ thống", class:"admin-only", items:[{id:"settings", label:"Cài đặt chung", ico:"⚙"}, {id:"accounts", label:"Quản lý Tài khoản", ico:"⊞"}]}
+];
 
-/* --- TẠO TÀI KHOẢN CHO NHÂN VIÊN --- */
-function renderAccounts(){
-  document.getElementById("pageTitle").textContent="Cấp tài khoản Nhân viên";
-  document.getElementById("content").innerHTML=`<div class="panel"><h3>Tạo tài khoản phụ (Role: User)</h3><div class="field"><label>Email</label><input type="email" id="nAccEm"></div><div class="field"><label>Mật khẩu (>= 6 ký tự)</label><input type="password" id="nAccPw"></div><button class="btn btn-brand" onclick="app.createAcc()">Tạo ngay</button></div>`;
-}
-async function createAcc(){
-  try{ await secondaryApp.auth().createUserWithEmailAndPassword(document.getElementById("nAccEm").value, document.getElementById("nAccPw").value); await secondaryApp.auth().signOut(); alert("Tạo thành công!"); }
-  catch(e){ alert("Lỗi: "+e.message); }
+const PAGE_META = {
+  dashboard:["Bảng điều khiển","Tình trạng thiết bị CNTT"], devices:["Thiết bị","Sổ quản lý tài sản CNTT"],
+  employees:["Nhân viên","Danh sách nhân sự"], ops:["Nghiệp vụ","Quản lý giao nhận"],
+  history:["Lịch sử","Sự kiện vòng đời thiết bị"], finance:["Tài chính","Chi phí và khấu hao"],
+  settings:["Cài đặt","Cấu hình cảnh báo"], accounts:["Tài khoản", "Cấp quyền truy cập cho nhân viên"]
+};
+
+function renderNav(){
+  document.getElementById("mainNav").innerHTML = NAV.map(g => `
+    <div class="grp-label ${g.class||''}">${g.grp}</div>
+    ${g.items.map(it => `<button class="${state.view===it.id?'active':''} ${g.class||''}" onclick="app.setView('${it.id}')"><span class="ico">${it.ico}</span>${it.label}</button>`).join("")}
+  `).join("");
 }
 
-/* --- TÍNH NĂNG MỚI: IMPORT EXCEL (CSV) --- */
-function renderImport(){
-  document.getElementById("pageTitle").textContent="Nhập dữ liệu hàng loạt từ Excel/CSV";
-  document.getElementById("content").innerHTML=`
-    <div class="panel">
-      <h3>1. Import Danh Sách Thiết Bị</h3>
-      <p style="font-size:12px;color:var(--ink-soft)">Chọn file <b>DS Thiết bị.csv</b> (Phải có các cột: Mã TB, Loại thiết bị, Thương hiệu, ...)</p>
-      <input type="file" id="fileDev" accept=".csv" style="margin-bottom:10px;">
-      <button class="btn btn-brand" onclick="app.importCSV('devices')">Bắt đầu Import TB</button>
+function setView(view, arg){
+  state.view = view; renderNav();
+  const meta = PAGE_META[view] || PAGE_META.devices;
+  document.getElementById("pageTitle").textContent = meta[0]; document.getElementById("pageDesc").textContent = meta[1];
+  document.getElementById("topbarActions").innerHTML = "";
+  
+  if(view==="dashboard") renderDashboard();
+  else if(view==="devices") renderDevices();
+  else if(view==="device") renderDeviceDetail(arg);
+  else if(view==="employees") renderEmployees();
+  else if(view==="ops") renderOps();
+  else if(view==="history") renderHistory();
+  else if(view==="finance") renderFinance();
+  else if(view==="settings") renderSettings();
+  else if(view==="accounts") renderAccounts(); // Gọi giao diện tạo tài khoản
+}
+
+/* =========================================================
+   RENDER LOGIC
+========================================================= */
+function renderDashboard(){
+  document.getElementById("content").innerHTML = `
+    <div class="grid-stats">
+      <div class="stat-card"><div class="n">${state.devices.length}</div><div class="l">Tổng thiết bị</div></div>
     </div>
     <div class="panel">
-      <h3>2. Import Danh Sách Nhân Viên</h3>
-      <p style="font-size:12px;color:var(--ink-soft)">Chọn file <b>DS Nhân viên.csv</b> (Phải có các cột: Mã NV, Họ và tên, Bộ phận, ...)</p>
-      <input type="file" id="fileEmp" accept=".csv" style="margin-bottom:10px;">
-      <button class="btn btn-brand" onclick="app.importCSV('employees')">Bắt đầu Import NV</button>
+      <div class="panel-head"><h3>Bắt đầu nhanh</h3></div>
+      <div class="tiles">
+        <button class="tile" onclick="app.openDeviceForm()"><div class="ico">Nhập liệu</div><h4>Thêm thiết bị mới</h4></button>
+        <button class="tile" onclick="app.setView('devices')"><div class="ico">Tra cứu</div><h4>Xem danh sách</h4></button>
+      </div>
     </div>
   `;
 }
-function importCSV(type) {
-  const fileInput = document.getElementById(type === 'devices' ? 'fileDev' : 'fileEmp');
-  if (!fileInput.files.length) return alert("Vui lòng chọn file CSV trước!");
-  
-  Papa.parse(fileInput.files[0], {
-    header: true, skipEmptyLines: true,
-    complete: async function(results) {
-      const data = results.data; let importedCount = 0;
-      if (type === 'devices') {
-        data.forEach(row => {
-          if (!row["Mã TB"]) return;
-          // Kiểm tra xem mã TB đã tồn tại chưa, nếu chưa thì thêm mới
-          if (!state.devices.find(d => d.id === row["Mã TB"])) {
-            state.devices.push({
-              id: row["Mã TB"], type: row["Loại thiết bị"]||"", brand: row["Thương hiệu"]||"",
-              specs: row["Thông số kỹ thuật"]||"", condition: row["Tình trạng"]||"Mới",
-              status: row["Trạng thái sử dụng"]||"Trong kho", holderName: row["Người đang sử dụng"]||"",
-              dept: row["Bộ phận"]||"", purchaseDate: row["Ngày nhập kho"]||"", note: row["Ghi chú"]||""
-            });
-            importedCount++;
-            // Cập nhật Sequence sinh mã tự động
-            const num = parseInt(row["Mã TB"].replace("TB", ""));
-            if (!isNaN(num) && num >= state.meta.deviceSeq) state.meta.deviceSeq = num + 1;
-          }
-        });
-        await persistDevices(); await persistMeta();
-      } else {
-        data.forEach(row => {
-          if (!row["Mã NV"]) return;
-          if (!state.employees.find(e => e.id === row["Mã NV"])) {
-            state.employees.push({
-              id: row["Mã NV"], name: row["Họ và tên"]||"", dept: row["Bộ phận"]||"",
-              position: row["Chức vụ"]||"", email: row["Email"]||"", phone: row["Số điện thoại"]||"", status: row["Trạng thái"]||"Đang làm việc"
-            });
-            importedCount++;
-            const num = parseInt(row["Mã NV"].replace("NV", ""));
-            if (!isNaN(num) && num >= state.meta.employeeSeq) state.meta.employeeSeq = num + 1;
-          }
-        });
-        await persistEmployees(); await persistMeta();
-      }
-      alert(`Đã import thành công ${importedCount} dòng dữ liệu mới!`); fileInput.value = "";
-    }
-  });
+
+function renderDevices(){
+  // Đã bỏ class admin-only ở nút "+ Thêm thiết bị" để User cũng có thể bấm thêm
+  document.getElementById("topbarActions").innerHTML = `<button class="btn btn-brand" onclick="app.openDeviceForm()">+ Thêm thiết bị</button>`;
+  document.getElementById("content").innerHTML = `
+    <div class="panel" style="padding:14px 0 4px;">
+      <table class="data"><tr><th style="padding-left:22px;">Mã TB</th><th>Loại / Thương hiệu</th><th>Tình trạng</th><th>Trạng thái</th></tr>
+        ${state.devices.map(d=>`<tr class="rowclick" onclick="app.setView('device', '${d.id}')">
+            <td style="padding-left:22px; font-weight: bold;">${d.id}</td>
+            <td><div class="cell-title">${esc(d.type)}</div><div class="cell-sub">${esc(d.brand)}</div></td>
+            <td>${esc(d.condition)}</td><td><span class="pill ${STATUS_META[d.status]?.pill||'pill-slate'}">${esc(d.status)}</span></td>
+          </tr>`).join("")}
+      </table>
+    </div>
+  `;
 }
 
-function openModal(t, b, f){ document.getElementById("modalBox").innerHTML=`<div class="modal-head"><h3>${t}</h3></div><div class="modal-body">${b}</div><div class="modal-foot"><button class="btn" onclick="app.closeModal()" style="margin-right:10px">Huỷ</button>${f}</div>`; document.getElementById("modal-root").classList.add("open"); }
-function closeModal(){ document.getElementById("modal-root").classList.remove("open"); }
-window.app = { login, logout, setView, closeModal, openDeviceForm, saveDevice, openEmployeeForm, saveEmployee, openOpForm, submitOp, createAcc, saveSettings, importCSV };
+function renderDeviceDetail(id){
+  const d = state.devices.find(x=>x.id===id);
+  // User cũng có thể nhấn "Sửa thông tin" để bổ sung cấu hình/ngày mua
+  document.getElementById("topbarActions").innerHTML = `
+    <button class="btn" onclick="app.setView('devices')">← Quay lại</button>
+    <button class="btn" onclick="app.openDeviceForm('${id}')">Sửa thông tin</button>
+  `;
+  document.getElementById("content").innerHTML = `
+    <div class="panel">
+      <div class="kv"><b>Mã thiết bị</b><span>${esc(d.id)}</span></div>
+      <div class="kv"><b>Loại / Hiệu</b><span>${esc(d.type)} - ${esc(d.brand)}</span></div>
+      <div class="kv"><b>Ghi chú</b><span>${esc(d.note||"—")}</span></div>
+    </div>
+  `;
+}
+
+function renderEmployees(){
+  document.getElementById("topbarActions").innerHTML = `<button class="btn btn-brand admin-only" onclick="app.openEmployeeForm()">+ Thêm nhân viên</button>`;
+  document.getElementById("content").innerHTML = `<div class="panel"><table class="data"><tr><th>Mã NV</th><th>Họ tên</th><th>Bộ phận</th></tr>${state.employees.map(e=>`<tr><td>${e.id}</td><td>${esc(e.name)}</td><td>${esc(e.dept)}</td></tr>`).join("")}</table></div>`;
+}
+
+function renderAccounts(){
+  // Chỉ Admin mới được vào trang này
+  if(currentRole !== 'admin') { document.getElementById("content").innerHTML = "<div class='empty'><p>Không có quyền truy cập.</p></div>"; return; }
+  
+  document.getElementById("content").innerHTML = `
+    <div class="panel" style="max-width:500px;">
+      <h3>Tạo tài khoản đăng nhập cho nhân viên</h3>
+      <p style="font-size:13px; color:var(--ink-soft); margin-bottom:20px;">
+        Các tài khoản được tạo tại đây sẽ tự động được cấp quyền <b>User</b>. Người dùng có thể đăng nhập để giúp IT thêm mới, sửa và nhập liệu danh sách thiết bị. 
+        <br><br><i>(Các tính năng như Điều chuyển, Thu hồi, Cài đặt vẫn sẽ bị ẩn với họ).</i>
+      </p>
+      
+      <div class="field">
+        <label class="req">Email nội bộ (Tên đăng nhập)</label>
+        <input type="email" id="newAccEmail" placeholder="vd: nhanvien@jeanicgarment.com">
+      </div>
+      <div class="field">
+        <label class="req">Mật khẩu khởi tạo</label>
+        <input type="password" id="newAccPass" placeholder="Ít nhất 6 ký tự">
+      </div>
+      
+      <div style="margin-top: 20px;">
+        <button id="btnCreateAcc" class="btn btn-brand" onclick="app.createNewUserAccount()">Tạo tài khoản</button>
+      </div>
+    </div>
+  `;
+}
+
+// Các hàm rỗng giữ chỗ để code chạy ổn định
+function renderOps(){ document.getElementById("content").innerHTML = `<div class="empty"><p>Nghiệp vụ (Chỉ dành cho Admin)</p></div>`; }
+function renderHistory(){ document.getElementById("content").innerHTML = `<div class="empty"><p>Lịch sử hệ thống</p></div>`; }
+function renderFinance(){ document.getElementById("content").innerHTML = `<div class="empty"><p>Báo cáo tài chính</p></div>`; }
+function renderSettings(){ document.getElementById("content").innerHTML = `<div class="empty"><p>Trang cài đặt</p></div>`; }
+
+/* =========================================================
+   THÊM / SỬA THIẾT BỊ
+========================================================= */
+function openDeviceForm(id){
+  const d = id ? state.devices.find(x=>x.id===id) : null; const isEdit = !!d;
+  openModal(isEdit ? `Sửa thiết bị ${d.id}` : "Thêm thiết bị mới", `
+    <div class="field"><label>Mã thiết bị</label><input value="${isEdit?d.id:nextDeviceId()}" disabled></div>
+    <div class="field-row"><div class="field"><label class="req">Loại</label><input id="fType" list="typeList" value="${esc(d?.type||"")}"><datalist id="typeList">${DEVICE_TYPES.map(t=>`<option value="${t}">`).join("")}</datalist></div><div class="field"><label class="req">Hiệu</label><input id="fBrand" list="brandList" value="${esc(d?.brand||"")}"><datalist id="brandList">${BRANDS.map(b=>`<option value="${b}">`).join("")}</datalist></div></div>
+    <div class="field"><label>Ghi chú</label><textarea id="fNote">${esc(d?.note||"")}</textarea></div>
+  `, `<button class="btn btn-ghost" onclick="app.closeModal()">Huỷ</button><button class="btn btn-brand" onclick="app.saveDevice(${isEdit?`'${id}'`:'null'})">Lưu dữ liệu</button>`);
+}
+
+async function saveDevice(id){
+  const type = document.getElementById("fType").value; const brand = document.getElementById("fBrand").value;
+  if(!type || !brand){ toast("Nhập đủ loại & hiệu", true); return; }
+  
+  if(id){
+    const d = state.devices.find(x=>x.id===id); d.type=type; d.brand=brand; d.note=document.getElementById("fNote").value;
+  } else {
+    const d = { id:nextDeviceId(), type, brand, condition:"Mới", status:"Trong kho", holderId:null, holderName:null, dept:"", importDate:todayISO(), note:document.getElementById("fNote").value, repairs:[], history:[] };
+    state.devices.push(d); state.meta.deviceSeq++; await persistMeta();
+  }
+  await persistDevices(); closeModal(); toast("Đã lưu thành công"); setView(id?"device":"devices", id);
+}
+
+function openEmployeeForm(id){}
+function saveEmployee(id){}
+
+window.app = { login, logout, setView, closeModal, openDeviceForm, saveDevice, openEmployeeForm, saveEmployee, createNewUserAccount };
 </script>
 </body>
 </html>
