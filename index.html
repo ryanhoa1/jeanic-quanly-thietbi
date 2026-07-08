@@ -16,7 +16,7 @@
 <!-- JsBarcode + QRCode: sinh mã vạch & mã QR cho tem tài sản phục vụ kiểm kê -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/JsBarcode/3.11.6/JsBarcode.all.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <style>
 :root{
   --ink:#14181F; --ink-soft:#4B5563; --paper:#F3F5F8; --surface:#FFFFFF;
@@ -187,9 +187,11 @@ table.data tr.row-update{background:var(--amber-tint);}
 }
 
 #print-area{display:none;}
+/* Thanh điều khiển nổi trên màn hình khi xem biên bản */
+.print-toolbar { background: #14181F; padding: 12px 24px; display: flex; gap: 12px; justify-content: center; position: sticky; top: 0; z-index: 9999; border-bottom: 1px solid var(--line); }
 @media print{
   @page{ size:A4 portrait; margin:12mm; }
-  #shell, #login-overlay, #modal-root, #toast-wrap{display:none !important;}
+  #shell, #login-overlay, #modal-root, #toast-wrap, .print-toolbar{display:none !important;}
   #print-area{display:block !important;}
   body{background:#fff;}
   .bb-page{ page-break-after:avoid; page-break-inside:avoid; }
@@ -425,7 +427,28 @@ function seedDefaults(){
   state.meta = {deviceSeq:3, employeeSeq:3};
   state.settings = {...DEFAULT_SETTINGS};
 }
-
+/* ---------- GLOBAL AUDIT LOG SYSTEM ---------- */
+async function saveGlobalLog(opType, deviceId, logEntry, printPayload) {
+  const globalLog = {
+    deviceId: deviceId,
+    type: opType,
+    date: new Date().toISOString(),
+    by: currentUser?.email || "local",
+    detail: logEntry,
+    printData: printPayload || null
+  };
+  if (Store.mode === "cloud") {
+    try { await db.collection("jeanic_audit_logs").add(globalLog); } catch (e) { console.error("Lỗi lưu global log:", e); }
+  } else {
+    let localLogs = [];
+    try {
+      const stored = localStorage.getItem("jeanic-global-logs");
+      if (stored) localLogs = JSON.parse(stored);
+    } catch (e) {}
+    localLogs.unshift(globalLog);
+    localStorage.setItem("jeanic-global-logs", JSON.stringify(localLogs));
+  }
+}
 /* =========================================================
    HELPERS
 ========================================================= */
@@ -1303,9 +1326,11 @@ async function submitOp(op){
     printPayload = {op, single:true, title:OP_META[op].title, device:deviceSnapshot(d), reason:description, vendor, cost, by, note, date:nowISO, condition};
   }
 
-  if(printPayload){ entry.print = printPayload; }
+ if(printPayload){ entry.print = printPayload; }
   d.history = d.history||[];
   d.history.unshift(entry);
+  // Ghi nhận log hệ thống độc lập an toàn trước khi lưu thiết bị
+  await saveGlobalLog(op, d.id, entry, printPayload);
   await persistDevices();
   closeModal();
   toast(op==="sua_chua" ? "Đã ghi nhận sửa chữa cho "+d.id : "Đã lưu nghiệp vụ cho "+d.id);
@@ -1317,15 +1342,14 @@ async function submitOp(op){
 function renderPrintable(p){
   resetPrintPage();
   const d = p.device;
+  let contentHTML = "";
 
-  // Các nghiệp vụ nội bộ không có "bên nhận" (gửi bảo trì, hoàn tất bảo trì, thanh lý, sửa chữa)
-  // dùng mẫu phiếu đơn giản 1 chữ ký thay vì mẫu song phương Bên A / Bên B.
   if(p.single){
     const extraRows = [];
     if(p.reason) extraRows.push(`<div class="bb-row"><div>Lý do / Mô tả: <b>${esc(p.reason)}</b></div></div>`);
     if(p.vendor) extraRows.push(`<div class="bb-row"><div>Đơn vị sửa chữa: <b>${esc(p.vendor)}</b></div></div>`);
     if(p.cost) extraRows.push(`<div class="bb-row"><div>Chi phí: <b>${fmtVND(p.cost)}</b></div></div>`);
-    document.getElementById("print-area").innerHTML = `
+    contentHTML = `
       <div class="bb-page">
         <div class="bb-head">
           <div class="co">CÔNG TY JEANIC GARMENT SOLUTIONS</div>
@@ -1347,9 +1371,84 @@ function renderPrintable(p){
           <div><div class="cap">PHỤ TRÁCH IT XÁC NHẬN</div><div class="sub">(Ký và ghi rõ họ tên)</div><div></div></div>
         </div>
       </div>`;
-    setTimeout(()=>{ try{ window.print(); }catch(e){} }, 250);
-    return;
+  } else {
+    const terms = {
+      ban_giao:[
+        "Bên B có trách nhiệm bảo quản, giữ gìn thiết bị được bàn giao trong suốt quá trình sử dụng.",
+        "Trong trường hợp thiết bị bị hư hỏng, mất mát do lỗi của Bên B, Bên B có trách nhiệm bồi thường theo giá trị thực tế.",
+        "Biên bản này được lập thành 02 bản, mỗi bên giữ 01 bản và có giá trị pháp lý như nhau.",
+        "Bên B xác nhận đã nhận đủ thiết bị như danh sách trên và cam kết sử dụng đúng mục đích công việc."
+      ],
+      dieu_chuyen:[
+        "Bên nhận có trách nhiệm bảo quản, giữ gìn thiết bị được điều chuyển trong suốt quá trình sử dụng.",
+        "Trong trường hợp thiết bị bị hư hỏng, mất mát do lỗi của Bên nhận, Bên nhận có trách nhiệm bồi thường theo giá trị thực tế.",
+        "Biên bản này được lập thành 02 bản, mỗi bên giữ 01 bản và có giá trị pháp lý như nhau.",
+        "Bên nhận xác nhận đã nhận đủ thiết bị như danh sách trên và cam kết sử dụng đúng mục đích công việc."
+      ],
+      thu_hoi:[
+        "Bên trả thiết bị xác nhận đã bàn giao đầy đủ thiết bị như danh sách trên cho Bộ phận IT.",
+        "Bộ phận IT kiểm tra tình trạng thiết bị tại thời điểm thu hồi và ghi nhận vào cột Tình trạng.",
+        "Nếu thiết bị hư hỏng, mất mát do lỗi sử dụng, Bên trả thiết bị có trách nhiệm bồi thường theo giá trị thực tế.",
+        "Biên bản này được lập thành 02 bản, mỗi bên giữ 01 bản và có giá trị pháp lý như nhau."
+      ]
+    };
+    const t = terms[p.op] || terms.ban_giao;
+    const sideALabel = p.op==="thu_hoi" ? "BÊN TRẢ THIẾT BỊ" : "BÊN BÀN GIAO (BÊN A)";
+    const sideBLabel = p.op==="thu_hoi" ? "BÊN THU HỒI (IT)" : (p.op==="dieu_chuyen"?"BÊN NHẬN ĐIỀU CHUYỂN (BÊN B)":"BÊN NHẬN BÀN GIAO (BÊN B)");
+    contentHTML = `
+    <div class="bb-page">
+      <div class="bb-head">
+        <div class="co">CÔNG TY JEANIC GARMENT SOLUTIONS</div>
+        <div class="dept">Bộ phận IT</div>
+        <h1>${esc(p.title).toUpperCase()}</h1>
+      </div>
+      <div class="bb-row"><div>Ngày lập biên bản: <b>${fmtDate(p.date)}</b></div><div>Người lập biên bản: <b>${esc(p.by||"—")}</b></div></div>
+      ${p.reason?`<div class="bb-row"><div>Lý do: <b>${esc(p.reason)}</b></div></div>`:""}
+      <div class="bb-block">
+        <h4>${sideALabel}</h4>
+        <div class="bb-row"><div>Họ và tên: <b>${esc(p.from.name)}</b></div><div>Bộ phận: <b>${esc(p.from.dept)}</b></div></div>
+      </div>
+      <div class="bb-block">
+        <h4>${sideBLabel}</h4>
+        <div class="bb-row"><div>Họ và tên: <b>${esc(p.to.name)}</b></div><div>Bộ phận: <b>${esc(p.to.dept)}</b></div></div>
+      </div>
+      <p>Cùng nhau lập biên bản với nội dung cụ thể như sau:</p>
+      <div class="bb-block">
+        <h4>Danh sách thiết bị</h4>
+        <table class="bb-table">
+          <tr><th>STT</th><th>Mã TB</th><th>Thương hiệu</th><th>Loại thiết bị</th><th>Thông số kỹ thuật</th><th>Tình trạng</th></tr>
+          <tr><td>1</td><td>${esc(d.id)}</td><td>${esc(d.brand)}</td><td>${esc(d.type)}</td><td>${esc(d.specs||"")}</td><td>${esc(d.condition)}</td></tr>
+        </table>
+      </div>
+      <div class="bb-block">
+        <h4>Điều khoản</h4>
+        <div class="bb-terms">${t.map((x,i)=>`${i+1}. ${esc(x)}<br>`).join("")}</div>
+      </div>
+      <div class="bb-sign">
+        <div><div class="cap">${sideALabel}</div><div class="sub">(Ký và ghi rõ họ tên)</div><div>${esc(p.from.name)}</div></div>
+        <div><div class="cap">${sideBLabel}</div><div class="sub">(Ký và ghi rõ họ tên)</div><div>${esc(p.to.name)}</div></div>
+      </div>
+    </div>`;
   }
+
+  // Dựng thanh công cụ điều hướng nổi trên vùng hiển thị in ấn
+  document.getElementById("print-area").innerHTML = `
+    <div class="print-toolbar">
+      <button class="btn btn-brand" onclick="window.print()">🖨️ In Biên Bản</button>
+      <button class="btn" onclick="app.downloadPDF('${esc(d.id)}', '${p.op}')">⬇️ Tải file PDF</button>
+      <button class="btn btn-danger" onclick="app.closePrintView()">✕ Đóng giao diện</button>
+    </div>
+    <div id="pdf-wrapper" style="background:#fff; padding: 10px 0;">
+      ${contentHTML}
+    </div>
+  `;
+
+  // Điều hướng hiển thị tối ưu toàn màn hình cho trang in
+  document.getElementById("shell").style.display = "none";
+  document.getElementById("print-area").style.display = "block";
+
+  setTimeout(()=>{ try{ window.print(); }catch(e){} }, 500);
+}
 
   const terms = {
     ban_giao:[
@@ -2125,7 +2224,24 @@ window.app = {
   exportDevicesCSV,
   downloadImportTemplate, handleImportFile, setImportSheet, buildImportPreview, commitImport,
   renderAccounts, createAccount, toggleAccountRole, toggleAccountActive, sendReset,
-  saveSettings, exportBackup, importBackup
+  saveSettings, exportBackup, importBackup,
+  closePrintView: function() {
+    document.getElementById("print-area").style.display = "none";
+    document.getElementById("shell").style.display = "flex";
+    window.scrollTo(0,0);
+  },
+  downloadPDF: function(deviceId, op) {
+    const element = document.getElementById('pdf-wrapper');
+    const opt = {
+      margin:       12,
+      filename:     `Bien_Ban_${op}_${deviceId}_${new Date().toISOString().slice(0,10)}.pdf`,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+    toast("Đang khởi tạo file PDF...");
+    html2pdf().set(opt).from(element).save().then(() => { toast("Tải PDF thành công!"); });
+  }
 };
 
 </script>
