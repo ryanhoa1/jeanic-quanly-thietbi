@@ -125,5 +125,44 @@
 
   <!-- App JS (Modules) -->
   <script type="module" src="js/app.js"></script>
+
+  <!-- Diagnostic fallback: catches the "silent failure" case where module
+       scripts fail to load (most commonly caused by opening this file
+       directly as file:// instead of serving it over http/https). -->
+  <script>
+    (function () {
+      function showBootError(msg) {
+        var box = document.getElementById('loginErr');
+        if (box) {
+          box.textContent = msg;
+          box.classList.add('show');
+        } else {
+          alert(msg);
+        }
+      }
+
+      window.addEventListener('error', function (e) {
+        console.error('[JEANIC IT] Lỗi JS:', e.error || e.message, e.filename, e.lineno);
+      });
+      window.addEventListener('unhandledrejection', function (e) {
+        console.error('[JEANIC IT] Lỗi Promise chưa xử lý:', e.reason);
+      });
+
+      // If app.js (a module) fails to execute for any reason — 404, CORS
+      // from file://, syntax error in an imported file, blocked CDN
+      // script, etc. — window.app.login will never be defined. Detect
+      // that and surface a clear message instead of staying silent.
+      setTimeout(function () {
+        if (!window.app || typeof window.app.login !== 'function') {
+          var isFileProtocol = location.protocol === 'file:';
+          var msg = isFileProtocol
+            ? 'Không thể tải ứng dụng vì bạn đang mở file trực tiếp (file://). Vui lòng chạy qua một máy chủ web, ví dụ: mở bằng tiện ích "Live Server" trong VS Code, hoặc chạy lệnh "python -m http.server" trong thư mục này rồi mở http://localhost:8000.'
+            : 'Không thể tải ứng dụng (JS module lỗi hoặc bị chặn). Vui lòng mở Console (F12 → Console) để xem chi tiết lỗi, hoặc kiểm tra kết nối mạng tới các thư viện Firebase/CDN.';
+          showBootError(msg);
+          console.error('[JEANIC IT] window.app không được khởi tạo. protocol =', location.protocol);
+        }
+      }, 1800);
+    })();
+  </script>
 </body>
 </html>
