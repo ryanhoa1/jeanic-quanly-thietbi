@@ -1059,7 +1059,7 @@ async function saveDevice(id){
       // Cấp phát ngay lúc thêm mới cũng được coi là một nghiệp vụ BÀN GIAO đầy đủ:
       // sinh biên bản có thể in/xem lại giống hệt khi thao tác qua màn hình Nghiệp vụ.
       const nowISO = new Date().toISOString();
-      printPayload = {op:"ban_giao", title:OP_META.ban_giao.title, device:d, from:{name:"Kho IT", dept:"IT"}, to:{name:emp.name, dept:emp.dept}, by:currentUser?.email||"", note:"Nhập kho và bàn giao ngay", date:nowISO};
+      printPayload = {op:"ban_giao", title:OP_META.ban_giao.title, device:deviceSnapshot(d), from:{name:"Kho IT", dept:"IT"}, to:{name:emp.name, dept:emp.dept}, by:currentUser?.email||"", note:"Nhập kho và bàn giao ngay", date:nowISO};
       d.history.push({date:nowISO, type:"ban_giao", label:"Bàn giao cho nhân viên", to:emp.name, dept:emp.dept, condition, by:currentUser?.email||"", note:"Nhập kho và bàn giao ngay", uid:newHistoryUid(), print:printPayload});
     }
     state.devices.push(d);
@@ -1232,6 +1232,10 @@ function previewOpDevice(op){
   }
   extraBox.innerHTML = extra;
 }
+function deviceSnapshot(d){
+  return {id:d.id, type:d.type, brand:d.brand, specs:d.specs, condition:d.condition, holderName:d.holderName, dept:d.dept, purchaseDate:d.purchaseDate, purchasePrice:d.purchasePrice};
+}
+
 async function submitOp(op){
   const devId = document.getElementById("opDevice")?.value;
   if(!devId){ toast("Vui lòng chọn thiết bị", true); return; }
@@ -1264,26 +1268,29 @@ async function submitOp(op){
     entry.to = emp.name; entry.dept = emp.dept; entry.condition = condition;
     if(op==="dieu_chuyen"){ entry.from = fromName; }
     d.status = "Đang sử dụng"; d.holderId = emp.id; d.holderName = emp.name; d.dept = emp.dept; d.condition = condition;
-    printPayload = {op, title:OP_META[op].title, device:d, from:{name:fromName||"Kho IT", dept:fromDept||"IT"}, to:{name:emp.name, dept:emp.dept}, by, note, date:nowISO};
+    printPayload = {op, title:OP_META[op].title, device:deviceSnapshot(d), from:{name:fromName||"Kho IT", dept:fromDept||"IT"}, to:{name:emp.name, dept:emp.dept}, by, note, date:nowISO};
   } else if(op==="thu_hoi"){
     const reason = document.getElementById("opReason").value.trim();
     if(!reason){ toast("Vui lòng nhập lý do thu hồi", true); return; }
     entry.type="thu_hoi"; entry.label="Thu hồi thiết bị"; entry.from=d.holderName; entry.reason=reason; entry.condition=condition;
-    printPayload = {op, title:OP_META[op].title, device:d, from:{name:d.holderName||"—", dept:d.dept||""}, to:{name:by||"Kho IT", dept:"IT"}, reason, by, note, date:nowISO};
+    printPayload = {op, title:OP_META[op].title, device:deviceSnapshot(d), from:{name:d.holderName||"—", dept:d.dept||""}, to:{name:by||"Kho IT", dept:"IT"}, reason, by, note, date:nowISO};
     d.status="Trong kho"; d.holderId=null; d.holderName=null; d.dept=""; d.condition=condition;
   } else if(op==="bao_tri_bat_dau"){
     const reason = document.getElementById("opReason").value.trim();
     if(!reason){ toast("Vui lòng nhập lý do gửi bảo trì", true); return; }
     entry.type="bao_tri_bat_dau"; entry.label="Gửi bảo trì / sửa chữa"; entry.reason=reason; entry.condition=condition;
     d.status="Bảo trì"; d.condition=condition;
+    printPayload = {op, single:true, title:OP_META[op].title, device:deviceSnapshot(d), reason, by, note, date:nowISO, condition};
   } else if(op==="bao_tri_xong"){
     entry.type="bao_tri_xong"; entry.label="Hoàn tất bảo trì"; entry.condition=condition;
     d.status="Trong kho"; d.condition=condition;
+    printPayload = {op, single:true, title:OP_META[op].title, device:deviceSnapshot(d), by, note, date:nowISO, condition};
   } else if(op==="thanh_ly"){
     const reason = document.getElementById("opReason").value.trim();
     if(!reason){ toast("Vui lòng nhập lý do thanh lý", true); return; }
     entry.type="thanh_ly"; entry.label="Thanh lý thiết bị"; entry.reason=reason;
     d.status="Thanh lý"; d.holderId=null; d.holderName=null; d.dept=""; d.condition=condition;
+    printPayload = {op, single:true, title:OP_META[op].title, device:deviceSnapshot(d), reason, by, note, date:nowISO, condition};
   } else if(op==="sua_chua"){
     const vendor = document.getElementById("opRepairVendor").value.trim();
     const cost = Number(document.getElementById("opRepairCost").value)||0;
@@ -1293,6 +1300,7 @@ async function submitOp(op){
     d.condition = condition;
     d.repairs = d.repairs||[];
     d.repairs.push({date:nowISO, vendor, description, cost, by});
+    printPayload = {op, single:true, title:OP_META[op].title, device:deviceSnapshot(d), reason:description, vendor, cost, by, note, date:nowISO, condition};
   }
 
   if(printPayload){ entry.print = printPayload; }
@@ -1309,6 +1317,40 @@ async function submitOp(op){
 function renderPrintable(p){
   resetPrintPage();
   const d = p.device;
+
+  // Các nghiệp vụ nội bộ không có "bên nhận" (gửi bảo trì, hoàn tất bảo trì, thanh lý, sửa chữa)
+  // dùng mẫu phiếu đơn giản 1 chữ ký thay vì mẫu song phương Bên A / Bên B.
+  if(p.single){
+    const extraRows = [];
+    if(p.reason) extraRows.push(`<div class="bb-row"><div>Lý do / Mô tả: <b>${esc(p.reason)}</b></div></div>`);
+    if(p.vendor) extraRows.push(`<div class="bb-row"><div>Đơn vị sửa chữa: <b>${esc(p.vendor)}</b></div></div>`);
+    if(p.cost) extraRows.push(`<div class="bb-row"><div>Chi phí: <b>${fmtVND(p.cost)}</b></div></div>`);
+    document.getElementById("print-area").innerHTML = `
+      <div class="bb-page">
+        <div class="bb-head">
+          <div class="co">CÔNG TY JEANIC GARMENT SOLUTIONS</div>
+          <div class="dept">Bộ phận IT</div>
+          <h1>${esc(p.title).toUpperCase()}</h1>
+        </div>
+        <div class="bb-row"><div>Ngày lập: <b>${fmtDate(p.date)}</b></div><div>Người lập: <b>${esc(p.by||"—")}</b></div></div>
+        ${extraRows.join("")}
+        <div class="bb-block">
+          <h4>Thông tin thiết bị</h4>
+          <table class="bb-table">
+            <tr><th>STT</th><th>Mã TB</th><th>Thương hiệu</th><th>Loại thiết bị</th><th>Thông số kỹ thuật</th><th>Tình trạng</th></tr>
+            <tr><td>1</td><td>${esc(d.id)}</td><td>${esc(d.brand)}</td><td>${esc(d.type)}</td><td>${esc(d.specs||"")}</td><td>${esc(p.condition||d.condition||"")}</td></tr>
+          </table>
+        </div>
+        ${p.note?`<div class="bb-block"><h4>Ghi chú</h4><div class="bb-terms">${esc(p.note)}</div></div>`:""}
+        <div class="bb-sign">
+          <div><div class="cap">NGƯỜI LẬP PHIẾU (IT)</div><div class="sub">(Ký và ghi rõ họ tên)</div><div>${esc(p.by||"")}</div></div>
+          <div><div class="cap">PHỤ TRÁCH IT XÁC NHẬN</div><div class="sub">(Ký và ghi rõ họ tên)</div><div></div></div>
+        </div>
+      </div>`;
+    setTimeout(()=>{ try{ window.print(); }catch(e){} }, 250);
+    return;
+  }
+
   const terms = {
     ban_giao:[
       "Bên B có trách nhiệm bảo quản, giữ gìn thiết bị được bàn giao trong suốt quá trình sử dụng.",
@@ -1530,7 +1572,7 @@ function renderAssetLabels(ids, mode){
    BIÊN BẢN ĐÃ LẬP — kho lưu trữ mọi biên bản (bàn giao/thu hồi/điều chuyển)
    đã in, có thể xem/in lại bất cứ lúc nào mà không cần đi tìm trong lịch sử.
 ========================================================= */
-const DOC_TYPE_LABEL = {ban_giao:"Bàn giao", thu_hoi:"Thu hồi", dieu_chuyen:"Điều chuyển"};
+const DOC_TYPE_LABEL = {ban_giao:"Bàn giao", thu_hoi:"Thu hồi", dieu_chuyen:"Điều chuyển", bao_tri_bat_dau:"Gửi bảo trì", bao_tri_xong:"Hoàn tất bảo trì", thanh_ly:"Thanh lý", sua_chua:"Sửa chữa"};
 let docFilter = {type:"all", q:""};
 function setDocFilter(k,v){ docFilter[k]=v; renderDocuments(); }
 function collectDocuments(){
@@ -1560,6 +1602,10 @@ function renderDocuments(){
         <option value="ban_giao" ${docFilter.type==='ban_giao'?'selected':''}>Bàn giao</option>
         <option value="thu_hoi" ${docFilter.type==='thu_hoi'?'selected':''}>Thu hồi</option>
         <option value="dieu_chuyen" ${docFilter.type==='dieu_chuyen'?'selected':''}>Điều chuyển</option>
+        <option value="bao_tri_bat_dau" ${docFilter.type==='bao_tri_bat_dau'?'selected':''}>Gửi bảo trì</option>
+        <option value="bao_tri_xong" ${docFilter.type==='bao_tri_xong'?'selected':''}>Hoàn tất bảo trì</option>
+        <option value="thanh_ly" ${docFilter.type==='thanh_ly'?'selected':''}>Thanh lý</option>
+        <option value="sua_chua" ${docFilter.type==='sua_chua'?'selected':''}>Sửa chữa</option>
       </select>
     </div>
     <div class="panel" style="padding:14px 0 4px;">
