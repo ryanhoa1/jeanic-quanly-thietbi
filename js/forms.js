@@ -7,6 +7,7 @@ import {
 import { nextDeviceId, nextEmployeeId, todayISO, esc, fmtVND } from './helpers.js';
 import { openModal, closeModal, toast } from './ui.js';
 import { currentUser } from './auth.js';
+import { openReceiptPreview } from './print.js';
 
 function opt(list, selected) {
   return list.map(v => `<option value="${esc(v)}" ${v === selected ? 'selected' : ''}>${esc(v)}</option>`).join("");
@@ -285,21 +286,34 @@ export async function submitOpsForm(type) {
   const deviceId = document.getElementById("opDevice").value;
   const note = document.getElementById("opNote").value.trim();
   const byEmail = currentUser?.email;
+
+  const deviceBefore = state.devices.find(x => x.id === deviceId);
+  if (!deviceBefore) { toast("Không tìm thấy thiết bị", "err"); return; }
+
   let result = null;
-  let printPayload = null;
+  let from = null, to = null, condition = null;
 
   if (type === "handover") {
     const empId = document.getElementById("opEmployee").value;
-    const condition = document.getElementById("opCondition").value;
+    const emp = state.employees.find(x => x.id === empId);
+    condition = document.getElementById("opCondition").value;
     result = handoverDevice(deviceId, empId, condition, note, byEmail);
+    to = emp ? { name: emp.name, dept: emp.dept, position: emp.position } : null;
   } else if (type === "return") {
-    const condition = document.getElementById("opCondition").value;
+    const fromEmp = state.employees.find(x => x.id === deviceBefore.holderId);
+    condition = document.getElementById("opCondition").value;
+    from = deviceBefore.holderName ? { name: deviceBefore.holderName, dept: deviceBefore.dept, position: fromEmp?.position } : null;
     result = returnDevice(deviceId, condition, note, byEmail);
   } else if (type === "transfer") {
     const empId = document.getElementById("opEmployee").value;
-    const condition = document.getElementById("opCondition").value;
+    const fromEmp = state.employees.find(x => x.id === deviceBefore.holderId);
+    const toEmp = state.employees.find(x => x.id === empId);
+    condition = document.getElementById("opCondition").value;
+    from = deviceBefore.holderName ? { name: deviceBefore.holderName, dept: deviceBefore.dept, position: fromEmp?.position } : null;
+    to = toEmp ? { name: toEmp.name, dept: toEmp.dept, position: toEmp.position } : null;
     result = transferDevice(deviceId, empId, condition, note, byEmail);
   } else if (type === "retire") {
+    from = deviceBefore.holderName ? { name: deviceBefore.holderName, dept: deviceBefore.dept } : null;
     result = retireDevice(deviceId, note, byEmail);
   }
 
@@ -307,11 +321,15 @@ export async function submitOpsForm(type) {
 
   await persistDevices();
   const opType = { handover: "ban_giao", return: "thu_hoi", transfer: "dieu_chuyen", retire: "thanh_ly" }[type];
-  await saveGlobalLog(opType, deviceId, result.history[0], printPayload, byEmail);
+  await saveGlobalLog(opType, deviceId, result.history[0], null, byEmail);
 
   toast(`${OPS_META[type].verb} thành công — ${deviceId}`);
   closeModal();
   if (window.__opsFormRefresh) window.__opsFormRefresh();
+
+  if (type !== "retire") {
+    openReceiptPreview({ type, device: result, from, to, condition, note, date: new Date().toISOString(), byEmail });
+  }
 }
 
 // ---------- Repair Form ----------

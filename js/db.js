@@ -17,7 +17,10 @@ export const DEFAULT_SETTINGS = {
   warrantyMonths: 12,
   depreciationWarnPercent: 15,
   warrantyWarnDays: 30,
-  repairCostWarnPercent: 30
+  repairCostWarnPercent: 30,
+  companyName: "Công ty TNHH Jeanic Garment",
+  companyAddress: "",
+  companyDept: "Phòng Công nghệ thông tin"
 };
 
 export const state = {

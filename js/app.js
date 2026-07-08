@@ -7,7 +7,7 @@ import {
 import { loadAll, state, persistSettings } from './db.js';
 import {
   renderDashboard, renderDevices, renderDeviceDetail,
-  renderEmployees, renderOps, renderHistoryTable, renderSettings, renderAccountsTable
+  renderEmployees, renderOps, renderReports, renderHistoryTable, renderSettings, renderAccountsTable
 } from './views.js';
 import { toast, openModal, closeModal } from './ui.js';
 import {
@@ -16,7 +16,14 @@ import {
   openOpsForm, submitOpsForm,
   openRepairForm, submitRepairForm
 } from './forms.js';
-import { printAssetLabel } from './print.js';
+import {
+  printAssetLabel, openReceiptPreview, closeReceiptPreview,
+  printReceiptNow, exportReceiptPDF
+} from './print.js';
+import {
+  exportDevicesExcel, exportEmployeesExcel, exportHistoryExcel,
+  exportInventoryChecklist, exportFullReport
+} from './export.js';
 
 // Setup global app object for inline HTML event handlers (onclick="app.xyz()")
 window.app = {};
@@ -27,7 +34,10 @@ const NAV = [
     { id: "devices", label: "Thiết bị", ico: "ph-laptop" },
     { id: "employees", label: "Nhân viên", ico: "ph-users" }
   ]},
-  { grp: "Nghiệp vụ", items: [{ id: "ops", label: "Nghiệp vụ", ico: "ph-arrows-left-right" }] },
+  { grp: "Nghiệp vụ", items: [
+    { id: "ops", label: "Nghiệp vụ", ico: "ph-arrows-left-right" },
+    { id: "reports", label: "Báo cáo & Kiểm kê", ico: "ph-file-xls" }
+  ]},
   { grp: "Hệ thống", admin: true, items: [
     { id: "settings", label: "Cài đặt", ico: "ph-gear" }
   ]}
@@ -39,6 +49,7 @@ const PAGE_META = {
   device: ["Chi tiết thiết bị", "Thông tin, lịch sử và tài chính của thiết bị"],
   employees: ["Nhân viên", "Danh sách nhân viên"],
   ops: ["Nghiệp vụ", "Bàn giao, thu hồi, điều chuyển thiết bị"],
+  reports: ["Báo cáo & Kiểm kê", "Xuất danh sách Excel để báo cáo và kiểm kê thiết bị"],
   settings: ["Cài đặt", "Cấu hình hệ thống"]
 };
 
@@ -180,6 +191,8 @@ function setView(view, arg) {
     content.innerHTML = renderEmployees(employeeFilter);
   } else if (view === "ops") {
     content.innerHTML = renderOps();
+  } else if (view === "reports") {
+    content.innerHTML = renderReports();
   } else if (view === "settings") {
     content.innerHTML = renderSettings();
     loadAccountsBox();
@@ -211,6 +224,28 @@ window.app.toast = toast;
 window.app.openDeviceForm = (id) => openDeviceForm(id, refreshCurrentView);
 window.app.submitDeviceForm = (id) => submitDeviceForm(id);
 window.app.printAssetLabel = (id) => printAssetLabel(id);
+window.app.closeReceiptPreview = () => closeReceiptPreview();
+window.app.printReceiptNow = () => printReceiptNow();
+window.app.exportReceiptPDF = () => exportReceiptPDF();
+window.app.reprintHistoryReceipt = (deviceId, idx) => {
+  const d = state.devices.find(x => x.id === deviceId);
+  if (!d) { toast("Không tìm thấy thiết bị", "err"); return; }
+  const h = (d.history || [])[idx];
+  if (!h) { toast("Không tìm thấy sự kiện lịch sử", "err"); return; }
+  const typeMap = { ban_giao: "handover", thu_hoi: "return", dieu_chuyen: "transfer", thanh_ly: "retire" };
+  const type = typeMap[h.type];
+  if (!type) { toast("Không thể tạo biên bản cho sự kiện này", "err"); return; }
+  const from = h.from ? { name: h.from } : null;
+  const to = h.to ? { name: h.to, dept: h.dept } : null;
+  openReceiptPreview({ type, device: d, from, to, condition: h.condition, note: h.note, date: h.date, byEmail: h.by });
+};
+
+// --- Reports / Exports ---
+window.app.exportDevicesExcel = () => exportDevicesExcel();
+window.app.exportEmployeesExcel = () => exportEmployeesExcel();
+window.app.exportHistoryExcel = () => exportHistoryExcel();
+window.app.exportInventoryChecklist = () => exportInventoryChecklist();
+window.app.exportFullReport = () => exportFullReport();
 window.app.openRepairForm = (deviceId) => openRepairForm(deviceId, refreshCurrentView);
 window.app.submitRepairForm = (deviceId) => submitRepairForm(deviceId);
 
@@ -224,11 +259,24 @@ window.app.submitOpsForm = (type) => submitOpsForm(type);
 
 // --- Settings ---
 window.app.saveSettings = async () => {
-  state.settings.usefulLifeYears = Number(document.getElementById("setUsefulLife").value) || state.settings.usefulLifeYears;
-  state.settings.warrantyMonths = Number(document.getElementById("setWarrantyMonths").value) || state.settings.warrantyMonths;
-  state.settings.depreciationWarnPercent = Number(document.getElementById("setDepWarn").value) || 0;
-  state.settings.warrantyWarnDays = Number(document.getElementById("setWarWarnDays").value) || 0;
-  state.settings.repairCostWarnPercent = Number(document.getElementById("setRepairWarn").value) || 0;
+  const companyNameEl = document.getElementById("setCompanyName");
+  const companyAddressEl = document.getElementById("setCompanyAddress");
+  const companyDeptEl = document.getElementById("setCompanyDept");
+  if (companyNameEl) state.settings.companyName = companyNameEl.value.trim();
+  if (companyAddressEl) state.settings.companyAddress = companyAddressEl.value.trim();
+  if (companyDeptEl) state.settings.companyDept = companyDeptEl.value.trim();
+
+  const usefulLifeEl = document.getElementById("setUsefulLife");
+  const warrantyEl = document.getElementById("setWarrantyMonths");
+  const depWarnEl = document.getElementById("setDepWarn");
+  const warWarnEl = document.getElementById("setWarWarnDays");
+  const repairWarnEl = document.getElementById("setRepairWarn");
+  if (usefulLifeEl) state.settings.usefulLifeYears = Number(usefulLifeEl.value) || state.settings.usefulLifeYears;
+  if (warrantyEl) state.settings.warrantyMonths = Number(warrantyEl.value) || state.settings.warrantyMonths;
+  if (depWarnEl) state.settings.depreciationWarnPercent = Number(depWarnEl.value) || 0;
+  if (warWarnEl) state.settings.warrantyWarnDays = Number(warWarnEl.value) || 0;
+  if (repairWarnEl) state.settings.repairCostWarnPercent = Number(repairWarnEl.value) || 0;
+
   await persistSettings();
   toast("Đã lưu cấu hình hệ thống");
 };

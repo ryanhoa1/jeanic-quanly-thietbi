@@ -18,6 +18,16 @@ export function fmtDateTime(iso) {
   return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }) + " " + d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }); 
 }
 
+// Vietnamese official-document style date, e.g. "Ngày 08 tháng 07 năm 2026"
+export function fmtDateVN(iso) {
+  const d = iso ? new Date(iso) : new Date();
+  if (isNaN(d)) return "";
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `Ngày ${dd} tháng ${mm} năm ${yyyy}`;
+}
+
 export function esc(s) { 
   return (s === undefined || s === null) ? "" : String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); 
 }

@@ -136,6 +136,9 @@ export function renderDevices(filter) {
         <option value="all">Tất cả bộ phận</option>
         ${DEPARTMENTS.map(dp => `<option value="${dp}" ${filter.dept === dp ? 'selected' : ''}>${dp}</option>`).join("")}
       </select>
+      <button class="btn btn-ghost" onclick="app.exportDevicesExcel()" title="Xuất danh sách thiết bị ra Excel">
+        <i class="ph ph-file-xls"></i> Xuất Excel
+      </button>
     </div>
     
     <div class="panel">
@@ -224,7 +227,7 @@ export function renderDeviceDetail(id) {
           <div class="panel-head"><h3><i class="ph ph-clock-counter-clockwise"></i> Lịch sử thiết bị</h3></div>
           ${history.length === 0 ? emptyState("Chưa có lịch sử", "") : `
           <div class="timeline">
-            ${history.map(h => `
+            ${history.map((h, idx) => `
               <div class="tl-item">
                 <div class="tl-date">${fmtDateTime(h.date)}</div>
                 <div class="tl-label">${esc(h.label)}</div>
@@ -234,6 +237,12 @@ export function renderDeviceDetail(id) {
                   ${h.condition ? `Tình trạng: ${esc(h.condition)}<br>` : ""}
                   ${h.note ? esc(h.note) + "<br>" : ""}
                   <span style="color:var(--text-muted);">Bởi: ${esc(h.by || "—")}</span>
+                  ${["ban_giao", "thu_hoi", "dieu_chuyen"].includes(h.type) ? `
+                    <div style="margin-top:8px;">
+                      <button class="btn btn-sm btn-ghost" onclick="app.reprintHistoryReceipt('${d.id}', ${idx})">
+                        <i class="ph ph-printer"></i> In biên bản
+                      </button>
+                    </div>` : ""}
                 </div>
               </div>
             `).join("")}
@@ -300,6 +309,9 @@ export function renderEmployees(filter) {
         <option value="all">Tất cả bộ phận</option>
         ${DEPARTMENTS.map(dp => `<option value="${dp}" ${filter.dept === dp ? 'selected' : ''}>${dp}</option>`).join("")}
       </select>
+      <button class="btn btn-ghost" onclick="app.exportEmployeesExcel()" title="Xuất danh sách nhân viên ra Excel">
+        <i class="ph ph-file-xls"></i> Xuất Excel
+      </button>
     </div>
     <div class="panel">
   `;
@@ -340,6 +352,11 @@ export function renderOps() {
   const inUse = state.devices.filter(d => d.status === "Đang sử dụng").length;
 
   return `
+    <div class="toolbar" style="justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="app.setView('reports')">
+        <i class="ph ph-file-xls"></i> Báo cáo & Kiểm kê
+      </button>
+    </div>
     <div class="tiles">
       <button class="tile" onclick="app.openOpsForm('handover')">
         <div class="ico"><i class="ph ph-arrow-circle-right"></i></div>
@@ -395,11 +412,80 @@ export function renderHistoryTable(limit) {
   `;
 }
 
+// ---------- Reports & Exports (Báo cáo & Kiểm kê) ----------
+export function renderReports() {
+  const total = state.devices.length;
+  const totalEmp = state.employees.length;
+
+  return `
+    <div class="panel">
+      <div class="panel-head">
+        <h3><i class="ph ph-file-xls"></i> Xuất báo cáo tổng hợp</h3>
+      </div>
+      <p style="color:var(--text-secondary); font-size:13.5px; margin-bottom:16px;">
+        Xuất toàn bộ dữ liệu (thiết bị, nhân viên, lịch sử nghiệp vụ, phiếu kiểm kê) ra một file Excel duy nhất, nhiều sheet, dùng để báo cáo định kỳ.
+      </p>
+      <button class="btn btn-brand" onclick="app.exportFullReport()">
+        <i class="ph ph-download-simple"></i> Xuất báo cáo tổng hợp (Excel — nhiều sheet)
+      </button>
+    </div>
+
+    <div class="tiles" style="margin-top:24px;">
+      <button class="tile" onclick="app.exportDevicesExcel()">
+        <div class="ico"><i class="ph ph-laptop"></i></div>
+        <h4>Danh sách thiết bị</h4>
+        <p>Xuất toàn bộ ${total} thiết bị: loại, tình trạng, người giữ, giá trị, bảo hành… ra Excel.</p>
+      </button>
+      <button class="tile" onclick="app.exportEmployeesExcel()">
+        <div class="ico"><i class="ph ph-users"></i></div>
+        <h4>Danh sách nhân viên</h4>
+        <p>Xuất ${totalEmp} nhân viên kèm số lượng thiết bị đang được giao ra Excel.</p>
+      </button>
+      <button class="tile" onclick="app.exportHistoryExcel()">
+        <div class="ico"><i class="ph ph-clock-counter-clockwise"></i></div>
+        <h4>Lịch sử nghiệp vụ</h4>
+        <p>Toàn bộ lịch sử bàn giao, thu hồi, điều chuyển, thanh lý ra Excel.</p>
+      </button>
+      <button class="tile" onclick="app.exportInventoryChecklist()">
+        <div class="ico"><i class="ph ph-clipboard-text"></i></div>
+        <h4>Phiếu kiểm kê thiết bị</h4>
+        <p>Danh sách thiết bị kèm cột trống để kiểm kê thực tế và ký xác nhận, in ra dùng khi kiểm kê định kỳ.</p>
+      </button>
+    </div>
+
+    <div class="panel" style="margin-top:24px;">
+      <div class="panel-head"><h3><i class="ph ph-printer"></i> In biên bản bàn giao / thu hồi / điều chuyển</h3></div>
+      <p style="color:var(--text-secondary); font-size:13.5px; margin-bottom:16px;">
+        Biên bản được tự động mở để in hoặc xuất PDF ngay sau khi thực hiện nghiệp vụ tại mục
+        <b>Nghiệp vụ</b>. Bạn cũng có thể in lại biên bản của một sự kiện cũ từ trang chi tiết thiết bị (mục Lịch sử thiết bị).
+      </p>
+      <button class="btn btn-ghost" onclick="app.setView('ops')"><i class="ph ph-arrow-right"></i> Đến trang Nghiệp vụ</button>
+    </div>
+  `;
+}
+
 // ---------- Settings ----------
 export function renderSettings() {
   const s = state.settings;
   return `
     <div class="detail-grid">
+      <div class="panel">
+        <div class="panel-head"><h3><i class="ph ph-buildings"></i> Thông tin công ty (dùng trong biên bản)</h3></div>
+        <div class="field">
+          <label>Tên công ty</label>
+          <input type="text" id="setCompanyName" value="${esc(s.companyName || "")}">
+        </div>
+        <div class="field">
+          <label>Địa chỉ</label>
+          <input type="text" id="setCompanyAddress" value="${esc(s.companyAddress || "")}">
+        </div>
+        <div class="field">
+          <label>Phòng ban lập biên bản</label>
+          <input type="text" id="setCompanyDept" value="${esc(s.companyDept || "")}">
+        </div>
+        <button class="btn btn-brand" onclick="app.saveSettings()"><i class="ph ph-floppy-disk"></i> Lưu cấu hình</button>
+      </div>
+
       <div class="panel">
         <div class="panel-head"><h3><i class="ph ph-sliders"></i> Tham số hệ thống</h3></div>
         <div class="field">
