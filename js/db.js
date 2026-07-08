@@ -73,6 +73,135 @@ export async function persistAll() {
   await Promise.all([persistDevices(), persistEmployees(), persistMeta(), persistSettings()]);
 }
 
+// ---------- Device CRUD ----------
+export function addDeviceRecord(deviceData, byEmail) {
+  const now = new Date().toISOString();
+  const device = {
+    ...deviceData,
+    repairs: [],
+    history: [{
+      date: now, type: "them_moi", label: "Thêm mới thiết bị vào hệ thống",
+      condition: deviceData.condition, by: byEmail || "—", note: deviceData.note || ""
+    }]
+  };
+  state.devices.push(device);
+  state.meta.deviceSeq += 1;
+  return device;
+}
+
+export function updateDeviceRecord(id, patch, byEmail, changeNote) {
+  const d = state.devices.find(x => x.id === id);
+  if (!d) return null;
+  Object.assign(d, patch);
+  if (changeNote) {
+    d.history = d.history || [];
+    d.history.unshift({
+      date: new Date().toISOString(), type: "cap_nhat", label: "Cập nhật thông tin thiết bị",
+      by: byEmail || "—", note: changeNote
+    });
+  }
+  return d;
+}
+
+export function addRepairRecord(id, repair, byEmail) {
+  const d = state.devices.find(x => x.id === id);
+  if (!d) return null;
+  d.repairs = d.repairs || [];
+  const rec = { date: repair.date || todayISOLocal(), desc: repair.desc || "", cost: Number(repair.cost) || 0 };
+  d.repairs.push(rec);
+  d.history = d.history || [];
+  d.history.unshift({
+    date: new Date().toISOString(), type: "sua_chua", label: "Ghi nhận sửa chữa/bảo trì",
+    by: byEmail || "—", note: `${rec.desc} — Chi phí: ${rec.cost.toLocaleString("vi-VN")} ₫`
+  });
+  return rec;
+}
+
+function todayISOLocal() { return new Date().toISOString().slice(0, 10); }
+
+// ---------- Employee CRUD ----------
+export function addEmployeeRecord(empData) {
+  const emp = { ...empData };
+  state.employees.push(emp);
+  state.meta.employeeSeq += 1;
+  return emp;
+}
+
+export function updateEmployeeRecord(id, patch) {
+  const e = state.employees.find(x => x.id === id);
+  if (!e) return null;
+  Object.assign(e, patch);
+  return e;
+}
+
+// ---------- Operations: handover / return / transfer ----------
+export function handoverDevice(deviceId, employeeId, condition, note, byEmail) {
+  const d = state.devices.find(x => x.id === deviceId);
+  const emp = state.employees.find(x => x.id === employeeId);
+  if (!d || !emp) return null;
+  d.status = "Đang sử dụng";
+  d.holderId = emp.id;
+  d.holderName = emp.name;
+  d.dept = emp.dept;
+  if (condition) d.condition = condition;
+  d.history = d.history || [];
+  d.history.unshift({
+    date: new Date().toISOString(), type: "ban_giao", label: "Bàn giao cho nhân viên",
+    to: emp.name, dept: emp.dept, condition: d.condition, by: byEmail || "—", note: note || ""
+  });
+  return d;
+}
+
+export function returnDevice(deviceId, condition, note, byEmail) {
+  const d = state.devices.find(x => x.id === deviceId);
+  if (!d) return null;
+  const fromName = d.holderName;
+  d.status = "Trong kho";
+  d.holderId = null;
+  d.holderName = null;
+  d.dept = null;
+  if (condition) d.condition = condition;
+  d.history = d.history || [];
+  d.history.unshift({
+    date: new Date().toISOString(), type: "thu_hoi", label: "Thu hồi về kho",
+    from: fromName, condition: d.condition, by: byEmail || "—", note: note || ""
+  });
+  return d;
+}
+
+export function transferDevice(deviceId, toEmployeeId, condition, note, byEmail) {
+  const d = state.devices.find(x => x.id === deviceId);
+  const emp = state.employees.find(x => x.id === toEmployeeId);
+  if (!d || !emp) return null;
+  const fromName = d.holderName;
+  d.holderId = emp.id;
+  d.holderName = emp.name;
+  d.dept = emp.dept;
+  d.status = "Đang sử dụng";
+  if (condition) d.condition = condition;
+  d.history = d.history || [];
+  d.history.unshift({
+    date: new Date().toISOString(), type: "dieu_chuyen", label: "Điều chuyển thiết bị",
+    from: fromName, to: emp.name, dept: emp.dept, condition: d.condition, by: byEmail || "—", note: note || ""
+  });
+  return d;
+}
+
+export function retireDevice(deviceId, note, byEmail) {
+  const d = state.devices.find(x => x.id === deviceId);
+  if (!d) return null;
+  d.status = "Thanh lý";
+  d.holderId = null;
+  d.holderName = null;
+  d.dept = null;
+  d.history = d.history || [];
+  d.history.unshift({
+    date: new Date().toISOString(), type: "thanh_ly", label: "Thanh lý thiết bị",
+    by: byEmail || "—", note: note || ""
+  });
+  return d;
+}
+
 function seedDefaults() {
   state.employees = [
     { id: "NV001", name: "Bùi Văn Hòa", dept: "IT", position: "Trưởng nhóm IT", email: "hoa.bui@jeanicgarment.com", phone: "0900000001", status: "Đang làm việc" },

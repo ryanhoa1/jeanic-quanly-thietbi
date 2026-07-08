@@ -1,11 +1,22 @@
 import { auth, useFirebase } from './firebase-config.js';
-import { 
-  resolveRole, login, signup, logout, 
-  setLocalUser, currentUser, currentRole, setCurrentUser
+import {
+  resolveRole, login, signup, logout,
+  setLocalUser, currentUser, currentRole, setCurrentUser,
+  listAccounts, setAccountRole, setAccountActive
 } from './auth.js';
-import { loadAll, state } from './db.js';
-import { renderDashboard, renderDevices } from './views.js';
+import { loadAll, state, persistSettings } from './db.js';
+import {
+  renderDashboard, renderDevices, renderDeviceDetail,
+  renderEmployees, renderOps, renderHistoryTable, renderSettings, renderAccountsTable
+} from './views.js';
 import { toast, openModal, closeModal } from './ui.js';
+import {
+  openDeviceForm, submitDeviceForm,
+  openEmployeeForm, submitEmployeeForm,
+  openOpsForm, submitOpsForm,
+  openRepairForm, submitRepairForm
+} from './forms.js';
+import { printAssetLabel } from './print.js';
 
 // Setup global app object for inline HTML event handlers (onclick="app.xyz()")
 window.app = {};
@@ -25,12 +36,14 @@ const NAV = [
 const PAGE_META = {
   dashboard: ["Bảng điều khiển", "Tình trạng thiết bị CNTT toàn công ty"],
   devices: ["Thiết bị", "Sổ quản lý tài sản CNTT — vòng đời từng thiết bị"],
+  device: ["Chi tiết thiết bị", "Thông tin, lịch sử và tài chính của thiết bị"],
   employees: ["Nhân viên", "Danh sách nhân viên"],
   ops: ["Nghiệp vụ", "Bàn giao, thu hồi, điều chuyển thiết bị"],
   settings: ["Cài đặt", "Cấu hình hệ thống"]
 };
 
 let deviceFilter = { q: "", status: "all", dept: "all" };
+let employeeFilter = { q: "", dept: "all" };
 
 // --- Auth UI Logic ---
 window.app.login = async () => {
@@ -38,21 +51,21 @@ window.app.login = async () => {
   const pass = document.getElementById("loginPass").value;
   const errBox = document.getElementById("loginErr");
   const successBox = document.getElementById("loginSuccess");
-  
+
   errBox.classList.remove("show");
   successBox.classList.remove("show");
-  
+
   if (!email || !pass) {
     errBox.textContent = "Vui lòng nhập đầy đủ email và mật khẩu.";
     errBox.classList.add("show");
     return;
   }
-  
+
   if (!useFirebase) {
     toast("Đang chạy offline. Chọn 'Vào thẳng'.", "err");
     return;
   }
-  
+
   try {
     const res = await login(email, pass);
     if (!res.success) {
@@ -71,27 +84,27 @@ window.app.signup = async () => {
   const pass = document.getElementById("loginPass").value;
   const errBox = document.getElementById("loginErr");
   const successBox = document.getElementById("loginSuccess");
-  
+
   errBox.classList.remove("show");
   successBox.classList.remove("show");
-  
+
   if (!email || !pass) {
     errBox.textContent = "Vui lòng nhập đầy đủ email và mật khẩu.";
     errBox.classList.add("show");
     return;
   }
-  
+
   if (!useFirebase) {
     toast("Đang chạy offline.", "err");
     return;
   }
-  
+
   if (pass.length < 6) {
     errBox.textContent = "Mật khẩu phải có ít nhất 6 ký tự.";
     errBox.classList.add("show");
     return;
   }
-  
+
   try {
     const res = await signup(email, pass);
     if (!res.success) {
@@ -139,49 +152,105 @@ function renderNav() {
 
 function setView(view, arg) {
   if (NAV.some(g => g.admin && g.items.some(it => it.id === view)) && currentRole !== "admin") {
-    toast("Chỉ quản trị viên mới truy cập được mục này", "err"); 
+    toast("Chỉ quản trị viên mới truy cập được mục này", "err");
     view = "dashboard";
   }
-  
-  state.view = view; 
+
+  state.view = view;
   state.currentId = arg;
   renderNav();
-  
+
   const meta = PAGE_META[view] || PAGE_META.devices;
   document.getElementById("pageTitle").textContent = meta[0];
   document.getElementById("pageDesc").textContent = meta[1];
-  
+
   const content = document.getElementById("content");
   const actions = document.getElementById("topbarActions");
   actions.innerHTML = "";
-  
+
   if (view === "dashboard") {
     content.innerHTML = renderDashboard();
   } else if (view === "devices") {
     actions.innerHTML = `<button class="btn btn-brand" onclick="app.openDeviceForm()"><i class="ph ph-plus"></i> Thêm thiết bị</button>`;
     content.innerHTML = renderDevices(deviceFilter);
+  } else if (view === "device") {
+    content.innerHTML = renderDeviceDetail(arg);
+  } else if (view === "employees") {
+    actions.innerHTML = `<button class="btn btn-brand" onclick="app.openEmployeeForm()"><i class="ph ph-plus"></i> Thêm nhân viên</button>`;
+    content.innerHTML = renderEmployees(employeeFilter);
+  } else if (view === "ops") {
+    content.innerHTML = renderOps();
+  } else if (view === "settings") {
+    content.innerHTML = renderSettings();
+    loadAccountsBox();
   } else {
     content.innerHTML = `
       <div class="empty">
         <i class="ph ph-wrench"></i>
         <b>Đang phát triển</b>
-        <p>Tính năng ${meta[0]} sẽ sớm ra mắt ở phiên bản module hóa tiếp theo.</p>
+        <p>Tính năng ${meta[0]} sẽ sớm ra mắt.</p>
       </div>
     `;
   }
   window.scrollTo(0, 0);
 }
 
+function refreshCurrentView() {
+  setView(state.view, state.currentId);
+}
+
 window.app.setView = setView;
 window.app.setDeviceFilter = (k, v) => { deviceFilter[k] = v; setView("devices"); };
+window.app.setEmployeeFilter = (k, v) => { employeeFilter[k] = v; setView("employees"); };
 
 // Exposed UI helpers
 window.app.closeModal = closeModal;
 window.app.toast = toast;
 
-// Forms and interactions placeholders (to ensure JS runs without errors)
-window.app.openDeviceForm = () => toast("Mở form thêm thiết bị (Đang phát triển)");
-window.app.printAssetLabel = (id) => toast(`In tem thiết bị: ${id} (Đang phát triển)`);
+// --- Devices ---
+window.app.openDeviceForm = (id) => openDeviceForm(id, refreshCurrentView);
+window.app.submitDeviceForm = (id) => submitDeviceForm(id);
+window.app.printAssetLabel = (id) => printAssetLabel(id);
+window.app.openRepairForm = (deviceId) => openRepairForm(deviceId, refreshCurrentView);
+window.app.submitRepairForm = (deviceId) => submitRepairForm(deviceId);
+
+// --- Employees ---
+window.app.openEmployeeForm = (id) => openEmployeeForm(id, refreshCurrentView);
+window.app.submitEmployeeForm = (id) => submitEmployeeForm(id);
+
+// --- Operations ---
+window.app.openOpsForm = (type) => openOpsForm(type, refreshCurrentView);
+window.app.submitOpsForm = (type) => submitOpsForm(type);
+
+// --- Settings ---
+window.app.saveSettings = async () => {
+  state.settings.usefulLifeYears = Number(document.getElementById("setUsefulLife").value) || state.settings.usefulLifeYears;
+  state.settings.warrantyMonths = Number(document.getElementById("setWarrantyMonths").value) || state.settings.warrantyMonths;
+  state.settings.depreciationWarnPercent = Number(document.getElementById("setDepWarn").value) || 0;
+  state.settings.warrantyWarnDays = Number(document.getElementById("setWarWarnDays").value) || 0;
+  state.settings.repairCostWarnPercent = Number(document.getElementById("setRepairWarn").value) || 0;
+  await persistSettings();
+  toast("Đã lưu cấu hình hệ thống");
+};
+
+async function loadAccountsBox() {
+  const box = document.getElementById("accountsBox");
+  if (!box) return;
+  const result = await listAccounts();
+  box.innerHTML = renderAccountsTable(result, currentUser?.email);
+}
+
+window.app.changeAccountRole = async (uid, role) => {
+  const ok = await setAccountRole(uid, role);
+  if (ok) { toast("Đã cập nhật vai trò"); loadAccountsBox(); }
+  else toast("Không thể cập nhật vai trò", "err");
+};
+
+window.app.toggleAccountActive = async (uid, currentlyActive) => {
+  const ok = await setAccountActive(uid, !currentlyActive);
+  if (ok) { toast(currentlyActive ? "Đã khoá tài khoản" : "Đã mở khoá tài khoản"); loadAccountsBox(); }
+  else toast("Không thể cập nhật trạng thái", "err");
+};
 
 // --- Init ---
 if (useFirebase) {

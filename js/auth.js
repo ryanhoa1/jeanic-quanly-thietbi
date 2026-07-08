@@ -84,3 +84,39 @@ export function setCurrentUser(user, role) {
   currentUser = user;
   currentRole = role;
 }
+
+export async function listAccounts() {
+  if (!useFirebase) return { supported: false, accounts: [] };
+  try {
+    const snap = await db.collection("jeanic_accounts").get();
+    const accounts = [];
+    snap.forEach(doc => accounts.push({ uid: doc.id, ...doc.data() }));
+    accounts.sort((a, b) => (a.email || "").localeCompare(b.email || ""));
+    return { supported: true, accounts };
+  } catch (e) {
+    console.error("Lỗi tải danh sách tài khoản:", e);
+    return { supported: true, accounts: [], error: e.message };
+  }
+}
+
+export async function setAccountRole(uid, role) {
+  if (!useFirebase) return false;
+  try {
+    await db.collection("jeanic_accounts").doc(uid).update({ role });
+    return true;
+  } catch (e) {
+    console.error("Lỗi cập nhật vai trò:", e);
+    return false;
+  }
+}
+
+export async function setAccountActive(uid, active) {
+  if (!useFirebase) return false;
+  try {
+    await db.collection("jeanic_accounts").doc(uid).update({ active });
+    return true;
+  } catch (e) {
+    console.error("Lỗi cập nhật trạng thái tài khoản:", e);
+    return false;
+  }
+}
