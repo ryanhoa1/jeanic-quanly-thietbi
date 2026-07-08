@@ -7,60 +7,68 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 
+<!-- Firebase (Auth + Firestore) — nếu không tải được (mất mạng/CDN bị chặn), app tự chuyển sang chế độ cục bộ (xem Store bên dưới) -->
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+<!-- SheetJS: đọc/ghi thật file Excel (.xlsx/.xls) và CSV -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <style>
 :root{
-  --ink:#14181F; --ink-soft:#4B5563; --paper:#F4F6F8; --surface:#FFFFFF;
-  --line:#DDE2DE; --line-soft:#EAEDEA;
-  /* Brand JEANIC Blue */
+  --ink:#14181F; --ink-soft:#4B5563; --paper:#F3F5F8; --surface:#FFFFFF;
+  --line:#DDE2E8; --line-soft:#EAEDF2;
   --brand:#1B5A96; --brand-dark:#113F6B; --brand-tint:#E6F0FA;
-  --amber:#B4740D; --amber-tint:#FBF0DD; --rust:#AF3B24; --rust-tint:#FBE7E1;
-  --slate:#5B6470; --slate-tint:#E7EAEC; --sky:#295A8C;
+  --amber:#B4740D; --amber-tint:#FBF0DD;
+  --rust:#AF3B24; --rust-tint:#FBE7E1;
+  --slate:#5B6470; --slate-tint:#E7EAEC;
   --radius:10px;
   --font-display:'Space Grotesk', sans-serif;
   --font-body:'Inter', sans-serif;
   --font-mono:'IBM Plex Mono', monospace;
 }
-*{box-sizing:border-box;} html,body{margin:0;padding:0;}
-body{font-family:var(--font-body); background:var(--paper); color:var(--ink); -webkit-font-smoothing:antialiased;}
-::selection{background:var(--brand-tint);color:var(--brand-dark);}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{font-family:var(--font-body);background:var(--paper);color:var(--ink);-webkit-font-smoothing:antialiased;}
+
+/* ---------- Login ---------- */
+#login-overlay{position:fixed;inset:0;background:linear-gradient(160deg,var(--ink),#1f2733);z-index:100;display:flex;align-items:center;justify-content:center;}
+.login-box{background:var(--surface);padding:36px 34px;border-radius:14px;width:360px;max-width:92vw;box-shadow:0 24px 60px rgba(0,0,0,.35);}
+.login-box h3{font-family:var(--font-display);margin:0 0 4px;font-size:19px;}
+.login-box .sub{font-size:12.5px;color:var(--ink-soft);margin-bottom:20px;}
+.login-box .err{background:var(--rust-tint);color:var(--rust);font-size:12.5px;padding:9px 11px;border-radius:8px;margin-bottom:12px;display:none;}
+.login-box .err.show{display:block;}
+.login-mode{display:flex;gap:10px;justify-content:center;margin-top:14px;font-size:12px;color:var(--ink-soft);}
+.login-mode button{background:none;border:none;color:var(--brand);cursor:pointer;font-weight:600;font-size:12px;padding:0;}
 
 /* ---------- Layout shell ---------- */
 #shell{display:flex;min-height:100vh;}
-#sidebar{width:248px;flex:none;background:var(--ink);color:#EDEFEC;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;}
-#sidebar .brand{padding:30px 20px 20px;border-bottom:1px solid rgba(255,255,255,.09); text-align: center;}
-#sidebar .brand img{width: 90px; height: 90px; border-radius: 50%; object-fit: cover; border: 3px solid #334155; margin-bottom: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);}
-#sidebar .brand .tag{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.14em;color:#8FB8AD;text-transform:uppercase;margin-bottom:6px;}
-#sidebar .brand h1{font-family:var(--font-display);font-size:16px;line-height:1.25;margin:0;font-weight:600;color:#fff;}
-#sidebar .brand .sub{font-size:11.5px;color:#9AA3AC;margin-top:4px;}
+#sidebar{width:250px;flex:none;background:var(--ink);color:#EDEFEC;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;}
+#sidebar .brand{padding:22px 20px 18px;border-bottom:1px solid rgba(255,255,255,.09);display:flex;gap:10px;align-items:center;}
+#sidebar .brand .logo-ph{width:34px;height:34px;border-radius:8px;background:var(--brand);color:#fff;font-family:var(--font-display);font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;flex:none;}
+#sidebar .brand .tt{min-width:0;}
+#sidebar .brand .tag{font-family:var(--font-mono);font-size:10px;letter-spacing:.12em;color:#8FAFCB;text-transform:uppercase;}
+#sidebar .brand h1{font-family:var(--font-display);font-size:15px;line-height:1.25;margin:0;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 nav.main-nav{padding:14px 10px;flex:1;overflow-y:auto;}
 nav.main-nav .grp-label{font-family:var(--font-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#7B848C;padding:14px 12px 6px;}
 nav.main-nav button{width:100%;text-align:left;background:none;border:none;color:#CBD1D6;font-family:var(--font-body);font-size:13.5px;font-weight:500;padding:9px 12px;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:10px;margin-bottom:2px;transition:background .12s,color .12s;}
-nav.main-nav button .ico{font-family:var(--font-mono);font-size:12px;width:18px;text-align:center;color:#7B848C;flex:none;}
+nav.main-nav button .ico{font-family:var(--font-mono);font-size:11px;width:18px;text-align:center;color:#7B848C;flex:none;}
 nav.main-nav button:hover{background:rgba(255,255,255,.06);color:#fff;}
 nav.main-nav button.active{background:var(--brand);color:#fff;}
-nav.main-nav button.active .ico{color:#CDEAE2;}
-#sidebar .foot{padding:14px 20px;border-top:1px solid rgba(255,255,255,.09);font-size:11px;color:#7B848C;}
-#sidebar .foot .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#4CA88A;margin-right:6px;}
+nav.main-nav button.active .ico{color:#CFE1F5;}
+#sidebar .foot{padding:12px 20px;border-top:1px solid rgba(255,255,255,.09);font-size:11px;color:#9AA3AC;}
+#sidebar .foot .mode-local{color:#E7B65C;}
+
+/* body role hiding — không dùng JS chèn style động (tránh lỗi), dùng class cố định trên <body> */
+body.role-user .admin-only{display:none !important;}
 
 #main{flex:1;min-width:0;display:flex;flex-direction:column;}
-#topbar{background:var(--surface);border-bottom:1px solid var(--line);padding:16px 28px;display:flex;align-items:center;justify-content:space-between;gap:16px;position:sticky;top:0;z-index:5;}
+#topbar{background:var(--surface);border-bottom:1px solid var(--line);padding:16px 28px;display:flex;align-items:center;justify-content:space-between;gap:16px;position:sticky;top:0;z-index:5;flex-wrap:wrap;}
 #topbar h2{font-family:var(--font-display);font-size:19px;margin:0;font-weight:600;}
 #topbar .desc{font-size:12.5px;color:var(--ink-soft);margin-top:2px;}
-#content{padding:26px 28px 60px;max-width:1180px;width:100%;margin:0 auto;}
+#topbarRight{display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+#content{padding:26px 28px 60px;max-width:1220px;width:100%;margin:0 auto;}
 
-/* ---------- Auth UI ---------- */
-#login-overlay {position: fixed; inset: 0; background: var(--ink); z-index: 1000; display: flex; align-items: center; justify-content: center;}
-.login-box {background: var(--surface); padding: 40px; border-radius: 12px; width: 100%; max-width: 380px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.4);}
-.login-box img { width: 80px; margin-bottom: 20px; border-radius: 50%; border: 2px solid var(--line); }
-.user-badge {display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 500;}
-.logout-btn { cursor: pointer; color: var(--rust); font-weight: 600; text-decoration: underline; }
-.admin-only { display: none !important; }
-
-/* ---------- Components ---------- */
 .btn{font-family:var(--font-body);font-size:13px;font-weight:600;border-radius:8px;padding:9px 15px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .12s;white-space:nowrap;}
 .btn:hover{border-color:var(--ink);}
 .btn-brand{background:var(--brand);border-color:var(--brand);color:#fff;}
@@ -70,10 +78,11 @@ nav.main-nav button.active .ico{color:#CDEAE2;}
 .btn-danger{color:var(--rust);}
 .btn-danger:hover{border-color:var(--rust);}
 .btn-sm{padding:6px 11px;font-size:12px;}
+.btn:disabled{opacity:.45;cursor:not-allowed;}
 
-.grid-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:24px;}
+.grid-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;}
 .stat-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 16px 14px;}
-.stat-card .n{font-family:var(--font-display);font-size:26px;font-weight:600;line-height:1;}
+.stat-card .n{font-family:var(--font-display);font-size:24px;font-weight:600;line-height:1;}
 .stat-card .l{font-size:11.5px;color:var(--ink-soft);margin-top:7px;font-weight:500;}
 .stat-card.accent-brand .n{color:var(--brand);}
 .stat-card.accent-slate .n{color:var(--slate);}
@@ -82,23 +91,23 @@ nav.main-nav button.active .ico{color:#CDEAE2;}
 
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px;margin-bottom:20px;}
 .panel h3{font-family:var(--font-display);font-size:15px;margin:0 0 14px;font-weight:600;}
-.panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px;flex-wrap:wrap;}
 .panel-head h3{margin:0;}
+.panel.dashed{border-style:dashed;background:var(--paper);}
 
-.tag{display:inline-flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:12.5px;font-weight:600;background:var(--ink);color:#EDEFEC;padding:4px 8px 4px 6px;border-radius:5px;}
+.tag{display:inline-flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:12.5px;font-weight:600;background:var(--ink);color:#EDEFEC;padding:4px 8px 4px 6px;border-radius:5px;letter-spacing:.02em;}
 .tag .bars{display:flex;gap:1.5px;align-items:flex-end;height:11px;}
-.tag .bars i{display:block;width:2px;background:#7DBFAF;}
-.tag .bars i:nth-child(1){height:100%;}
-.tag .bars i:nth-child(2){height:60%;}
-.tag .bars i:nth-child(3){height:85%;}
-.tag .bars i:nth-child(4){height:45%;}
-.tag .bars i:nth-child(5){height:100%;}
+.tag .bars i{display:block;width:2px;background:#7FA9D6;}
+.tag .bars i:nth-child(1){height:100%;} .tag .bars i:nth-child(2){height:60%;} .tag .bars i:nth-child(3){height:85%;} .tag .bars i:nth-child(4){height:45%;} .tag .bars i:nth-child(5){height:100%;}
 
 table.data{width:100%;border-collapse:collapse;font-size:13px;}
 table.data th{text-align:left;font-family:var(--font-mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);font-weight:500;padding:0 12px 10px;border-bottom:1px solid var(--line);}
 table.data td{padding:12px;border-bottom:1px solid var(--line-soft);vertical-align:top;}
+table.data tr:last-child td{border-bottom:none;}
 table.data tr.rowclick{cursor:pointer;}
 table.data tr.rowclick:hover{background:var(--brand-tint);}
+table.data tr.row-error{background:var(--rust-tint);}
+table.data tr.row-update{background:var(--amber-tint);}
 .cell-title{font-weight:600;font-size:13.5px;}
 .cell-sub{font-size:12px;color:var(--ink-soft);margin-top:2px;}
 
@@ -118,64 +127,111 @@ table.data tr.rowclick:hover{background:var(--brand-tint);}
 .req::after{content:' *';color:var(--rust);}
 
 .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;}
-.toolbar input[type=search]{flex:1;min-width:180px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;}
-.toolbar select{padding:9px 10px;border:1px solid var(--line);border-radius:8px;}
+.toolbar input[type=search]{flex:1;min-width:180px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-family:var(--font-body);font-size:13px;background:var(--surface);}
+.toolbar select{padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:var(--surface);font-family:var(--font-body);}
 
 #modal-root{position:fixed;inset:0;z-index:50;display:none;align-items:flex-start;justify-content:center;background:rgba(20,24,31,.45);overflow-y:auto;padding:40px 16px;}
 #modal-root.open{display:flex;}
-.modal-box{background:var(--surface);border-radius:12px;max-width:560px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25);animation:pop .15s ease;}
-@keyframes pop{from{transform:translateY(6px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+.modal-box{background:var(--surface);border-radius:12px;max-width:600px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25);}
 .modal-head{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;}
-.modal-head h3{font-family:var(--font-display);font-size:16px;margin:0;}
-.modal-body{padding:20px 22px;max-height:60vh;overflow-y:auto;}
+.modal-head h3{font-family:var(--font-display);font-size:16px;margin:0;font-weight:600;}
+.modal-body{padding:20px 22px;max-height:64vh;overflow-y:auto;}
 .modal-foot{padding:16px 22px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:10px;}
-.x-close{background:none;border:none;font-size:18px;cursor:pointer;}
+.x-close{background:none;border:none;font-size:18px;cursor:pointer;color:var(--ink-soft);line-height:1;}
+
+.timeline{position:relative;padding-left:22px;}
+.timeline::before{content:'';position:absolute;left:5px;top:4px;bottom:4px;width:1.5px;background:var(--line);}
+.tl-item{position:relative;padding-bottom:18px;}
+.tl-item:last-child{padding-bottom:0;}
+.tl-item::before{content:'';position:absolute;left:-22px;top:3px;width:9px;height:9px;border-radius:50%;background:var(--brand);border:2px solid var(--surface);box-shadow:0 0 0 1px var(--brand);}
+.tl-date{font-family:var(--font-mono);font-size:11px;color:var(--ink-soft);}
+.tl-label{font-weight:600;font-size:13.5px;margin:2px 0 3px;}
+.tl-detail{font-size:12.5px;color:var(--ink-soft);line-height:1.5;}
 
 .empty{text-align:center;padding:44px 20px;color:var(--ink-soft);}
 .empty .big{font-family:var(--font-mono);font-size:28px;color:var(--line);margin-bottom:10px;}
 .empty p{font-size:13px;margin:4px 0 14px;}
 
 #toast-wrap{position:fixed;bottom:22px;right:22px;z-index:80;display:flex;flex-direction:column;gap:8px;}
-.toast{background:var(--ink);color:#fff;padding:11px 16px;border-radius:8px;font-size:13px;display:flex;align-items:center;gap:8px;animation:slidein .18s ease;}
+.toast{background:var(--ink);color:#fff;padding:11px 16px;border-radius:8px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.25);}
 .toast.err{background:var(--rust);}
-@keyframes slidein{from{transform:translateY(8px);opacity:0;}to{transform:translateY(0);opacity:1;}}
 
 .detail-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:18px;align-items:start;}
-.kv{display:grid;grid-template-columns:130px 1fr;gap:6px 10px;font-size:13px;padding:5px 0;border-bottom:1px solid var(--line-soft);}
-.kv b{color:var(--ink-soft);font-weight:500;}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:6px 10px;font-size:13px;padding:5px 0;border-bottom:1px solid var(--line-soft);}
+.kv b{color:var(--ink-soft);font-weight:500;font-size:12px;}
+.specs-box{font-size:12.5px;line-height:1.6;color:var(--ink-soft);background:var(--paper);border-radius:8px;padding:12px 13px;white-space:pre-wrap;}
 
 .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
-.tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px;cursor:pointer;text-align:left;}
-.tile:hover{border-color:var(--brand);transform:translateY(-1px);}
-.tile .ico{font-family:var(--font-mono);font-size:11px;color:var(--brand);margin-bottom:8px;}
-.tile h4{font-family:var(--font-display);font-size:15px;margin:0 0 5px;}
-.tile p{font-size:12px;color:var(--ink-soft);margin:0;}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px;cursor:pointer;transition:all .12s;text-align:left;}
+.tile:hover{border-color:var(--brand);transform:translateY(-1px);box-shadow:0 6px 16px rgba(27,90,150,.12);}
+.tile .ico{font-family:var(--font-mono);font-size:11px;color:var(--brand);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;}
+.tile h4{font-family:var(--font-display);font-size:15px;margin:0 0 5px;font-weight:600;}
+.tile p{font-size:12px;color:var(--ink-soft);margin:0;line-height:1.5;}
+
+.upload-drop{border:1.5px dashed var(--line);border-radius:10px;padding:20px;text-align:center;background:var(--paper);}
+.upload-drop input[type=file]{margin-top:8px;}
+
+@media(max-width:980px){
+  .grid-stats{grid-template-columns:repeat(2,1fr);}
+  .tiles{grid-template-columns:1fr;}
+  .detail-grid{grid-template-columns:1fr;}
+  .field-row{grid-template-columns:1fr;}
+}
+@media(max-width:760px){
+  #sidebar{display:none;}
+  #content{padding:18px 14px 60px;}
+  #topbar{padding:14px 16px;}
+}
+
+#print-area{display:none;}
+@media print{
+  #shell > *:not(#print-area), #login-overlay, #modal-root, #toast-wrap{display:none !important;}
+  #print-area{display:block !important;}
+  body{background:#fff;}
+}
+.bb-page{max-width:760px;margin:0 auto;font-family:var(--font-body);font-size:13px;color:#111;padding:20px;}
+.bb-head{text-align:center;margin-bottom:16px;}
+.bb-head .co{font-weight:700;font-size:14px;}
+.bb-head .dept{font-size:12.5px;color:#444;}
+.bb-head h1{font-family:var(--font-display);font-size:19px;margin:10px 0 4px;}
+.bb-row{display:flex;gap:18px;margin:10px 0;font-size:13px;}
+.bb-block{margin:14px 0;}
+.bb-block h4{font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #999;padding-bottom:4px;margin-bottom:8px;}
+table.bb-table{width:100%;border-collapse:collapse;margin:10px 0;font-size:12.5px;}
+table.bb-table th,table.bb-table td{border:1px solid #999;padding:6px 8px;text-align:left;}
+table.bb-table th{background:#f0f0f0;}
+.bb-terms{font-size:11.5px;line-height:1.7;color:#222;margin-top:14px;}
+.bb-sign{display:flex;justify-content:space-between;margin-top:34px;text-align:center;}
+.bb-sign div{width:45%;}
+.bb-sign .cap{font-size:12px;font-weight:600;}
+.bb-sign .sub{font-size:11px;color:#555;font-style:italic;margin-bottom:50px;}
 </style>
 </head>
 <body>
 
 <div id="login-overlay">
   <div class="login-box">
-    <img src="logo.jpg" alt="Logo">
-    <h3 style="margin: 0 0 5px; font-family: var(--font-display);">JEANIC IT</h3>
-    <p style="font-size: 13px; color: var(--ink-soft); margin-bottom: 24px;">Hệ thống quản lý thiết bị</p>
-    <div class="field" style="text-align: left;"><input type="email" id="loginEmail" placeholder="Email nội bộ"></div>
-    <div class="field" style="text-align: left;"><input type="password" id="loginPass" placeholder="Mật khẩu"></div>
-    <button class="btn btn-brand" style="width: 100%; justify-content: center; padding: 12px;" onclick="app.login()">Đăng nhập hệ thống</button>
-    <div id="loginErr" style="color: var(--rust); font-size: 12px; margin-top: 10px; display: none;">Sai tài khoản hoặc mật khẩu.</div>
+    <h3>JEANIC IT · Đăng nhập</h3>
+    <div class="sub">Quản lý vòng đời thiết bị CNTT</div>
+    <div class="err" id="loginErr"></div>
+    <div class="field"><label>Email nội bộ</label><input type="email" id="loginEmail" placeholder="ban@jeanicgarment.com"></div>
+    <div class="field"><label>Mật khẩu</label><input type="password" id="loginPass" placeholder="••••••••"></div>
+    <button class="btn btn-brand" style="width:100%;justify-content:center;" onclick="app.login()">Đăng nhập</button>
+    <div class="login-mode" id="localModeNote" style="display:none;">Đang chạy ở chế độ cục bộ (không có máy chủ) — <button onclick="app.enterLocalMode()">Vào thẳng không cần đăng nhập</button></div>
   </div>
 </div>
 
-<div id="shell" style="display: none;">
+<div id="shell" style="display:none;">
   <aside id="sidebar">
     <div class="brand">
-      <img src="logo.jpg" alt="JEANIC">
-      <div class="tag">Garment Solutions</div>
-      <h1>Quản lý Thiết bị</h1>
-      <div class="sub">Bộ phận IT</div>
+      <div class="logo-ph">JT</div>
+      <div class="tt">
+        <div class="tag">Jeanic Garment Solutions</div>
+        <h1>Vòng đời thiết bị</h1>
+      </div>
     </div>
     <nav class="main-nav" id="mainNav"></nav>
-    <div class="foot"><div class="dot"></div>Lưu trữ đám mây an toàn</div>
+    <div class="foot" id="sidebarFoot"><span class="dot">●</span> Đang tải…</div>
   </aside>
 
   <div id="main">
@@ -184,13 +240,10 @@ table.data tr.rowclick:hover{background:var(--brand-tint);}
         <h2 id="pageTitle">Tổng quan</h2>
         <div class="desc" id="pageDesc">Tình trạng thiết bị CNTT toàn công ty</div>
       </div>
-      <div style="display: flex; align-items: center; gap: 20px;">
-        <div id="topbarActions" style="display: flex; gap: 10px;"></div>
-        <div class="user-badge" style="border-left: 1px solid var(--line); padding-left: 20px;">
-          <span id="currentUserEmail">đang tải...</span>
-          <span id="currentUserRole" class="pill pill-brand">...</span>
-          <span class="logout-btn" onclick="app.logout()">Thoát</span>
-        </div>
+      <div id="topbarRight">
+        <div id="topbarActions" style="display:flex;gap:10px;"></div>
+        <span class="pill pill-brand" id="currentUserRole">—</span>
+        <button class="btn btn-sm" onclick="app.logout()">Đăng xuất</button>
       </div>
     </div>
     <div id="content"></div>
@@ -203,10 +256,9 @@ table.data tr.rowclick:hover{background:var(--brand-tint);}
 
 <script>
 /* =========================================================
-   CẤU HÌNH FIREBASE & PHÂN QUYỀN
+   CẤU HÌNH FIREBASE — dự án thật của bạn
 ========================================================= */
 const firebaseConfig = {
-  // DÁN CẤU HÌNH CỦA ANH VÀO ĐÂY
   apiKey: "AIzaSyDd50N1NSJrF1dbvmuiQ1Fd6NaI-ArohAc",
   authDomain: "jeanic-it-assets.firebaseapp.com",
   projectId: "jeanic-it-assets",
@@ -215,170 +267,351 @@ const firebaseConfig = {
   appId: "1:385116689675:web:c940b184df9da94ea47e0e",
   measurementId: "G-XFZFWWWC7X"
 };
+const ADMIN_EMAILS = ["hoa.bui@jeanicgarment.com"]; // tài khoản admin "gốc" — luôn có quyền admin dù chưa có trong Firestore
 
-// Khởi tạo app chính (cho đăng nhập, đọc/ghi dữ liệu)
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
+let fbApp=null, fbSecondaryApp=null, auth=null, db=null;
+let useFirebase = false;
+try{
+  if(typeof firebase !== "undefined"){
+    fbApp = firebase.initializeApp(firebaseConfig);
+    fbSecondaryApp = firebase.initializeApp(firebaseConfig, "SecondaryApp");
+    auth = firebase.auth();
+    db = firebase.firestore();
+    useFirebase = true;
+  }
+}catch(err){
+  console.error("Không khởi tạo được Firebase — chuyển sang chế độ cục bộ.", err);
+  useFirebase = false;
+}
 
-// Khởi tạo app phụ (Dùng riêng cho tính năng Admin tạo tài khoản mà không bị văng ra)
-const secondaryApp = firebase.initializeApp(firebaseConfig, "SecondaryApp");
-
-// DANH SÁCH ADMIN
-const ADMIN_EMAILS = [
-  "hoa.bui@jeanicgarment.com"
-];
-
-let currentUser = null;
-let currentRole = "user";
+let currentUser = null;   // {uid, email}
+let currentRole = "user"; // "admin" | "user"
 
 /* =========================================================
-   DATA LAYER (GIỮ NGUYÊN)
+   DATA LAYER
 ========================================================= */
 const DEPARTMENTS = ["Ban Giám đốc","IT","Nhân sự (HR)","Kế toán","Kinh doanh","Plan (Kế hoạch)","Cắt (Cutting)","May (Sewing)","Hoàn thiện (Finishing)","QA/QC","Kho (Warehouse)","Bảo trì (Maintenance)","Xuất nhập khẩu","Khác"];
 const CONDITIONS = ["Mới","Tốt","Khá","Trung bình","Hỏng nhẹ","Hỏng nặng"];
 const DEVICE_TYPES = ["Laptop","Laptop + Sạc","Màn hình","Bàn phím","Chuột không dây","Chuột có dây","Tai nghe","Webcam","Máy in","Router/Switch","USB/Ổ cứng di động","Balo/Túi laptop","Sạc/Cáp","Khác"];
 const BRANDS = ["Dell","HP","Lenovo","Asus","Acer","Apple","Logitech","EBLUE","Samsung","LG","Canon","TP-Link","Khác"];
-const STATUS_META = { "Đang sử dụng":{pill:"pill-brand"}, "Trong kho":{pill:"pill-slate"}, "Bảo trì":{pill:"pill-amber"}, "Thanh lý":{pill:"pill-rust"} };
-const DEFAULT_SETTINGS = { usefulLifeYears: 3, warrantyMonths: 12, depreciationWarnPercent: 15, warrantyWarnDays: 30, repairCostWarnPercent: 30 };
+const STATUS_META = {
+  "Đang sử dụng":{pill:"pill-brand"},
+  "Trong kho":{pill:"pill-slate"},
+  "Bảo trì":{pill:"pill-amber"},
+  "Thanh lý":{pill:"pill-rust"}
+};
+const DEFAULT_SETTINGS = {
+  usefulLifeYears: 3,
+  warrantyMonths: 12,
+  depreciationWarnPercent: 15,
+  warrantyWarnDays: 30,
+  repairCostWarnPercent: 30
+};
 
-const state = { devices: [], employees: [], meta: { deviceSeq: 1, employeeSeq: 1 }, settings: { ...DEFAULT_SETTINGS }, view: "dashboard" };
+const state = {
+  devices: [],
+  employees: [],
+  meta: { deviceSeq: 1, employeeSeq: 1 },
+  settings: { ...DEFAULT_SETTINGS },
+  accounts: [],
+  view: "dashboard",
+  loaded:false
+};
 
+/* =========================================================
+   STORE — Firestore nếu có mạng, tự chuyển sang localStorage nếu không
+========================================================= */
+const Store = {
+  mode: useFirebase ? "cloud" : "local",
+  async get(key){
+    if(this.mode==="cloud"){
+      try{
+        const doc = await db.collection("jeanic_data").doc(key).get();
+        return doc.exists ? {value:doc.data().dataString} : null;
+      }catch(e){ console.error(e); return null; }
+    }
+    try{ const v = localStorage.getItem("jeanic-"+key); return v===null?null:{value:v}; }
+    catch(e){ return null; }
+  },
+  async set(key, value){
+    if(this.mode==="cloud"){
+      try{ await db.collection("jeanic_data").doc(key).set({dataString:value, updatedAt:new Date().toISOString()}); return true; }
+      catch(e){ console.error(e); return false; }
+    }
+    try{ localStorage.setItem("jeanic-"+key, value); return true; }
+    catch(e){ return false; }
+  }
+};
+async function loadAll(){
+  const [d,e,m,s] = await Promise.all([Store.get("devices"),Store.get("employees"),Store.get("meta"),Store.get("settings")]);
+  if(d && e && m){
+    state.devices = JSON.parse(d.value);
+    state.employees = JSON.parse(e.value);
+    state.meta = JSON.parse(m.value);
+    state.settings = s ? {...DEFAULT_SETTINGS, ...JSON.parse(s.value)} : {...DEFAULT_SETTINGS};
+  } else {
+    seedDefaults();
+    await persistAll();
+  }
+  state.loaded = true;
+}
+async function persistDevices(){ const ok = await Store.set("devices", JSON.stringify(state.devices)); if(!ok) toast("Không thể lưu dữ liệu thiết bị",true); }
+async function persistEmployees(){ const ok = await Store.set("employees", JSON.stringify(state.employees)); if(!ok) toast("Không thể lưu dữ liệu nhân viên",true); }
+async function persistMeta(){ await Store.set("meta", JSON.stringify(state.meta)); }
+async function persistSettings(){ const ok = await Store.set("settings", JSON.stringify(state.settings)); if(!ok) toast("Không thể lưu cài đặt",true); }
+async function persistAll(){ await Promise.all([persistDevices(),persistEmployees(),persistMeta(),persistSettings()]); }
+
+function seedDefaults(){
+  state.employees = [
+    {id:"NV001", name:"Bùi Văn Hòa", dept:"IT", position:"Trưởng nhóm IT", email:"hoa.bui@jeanicgarment.com", phone:"0900000001", status:"Đang làm việc"},
+    {id:"NV002", name:"Nguyễn Thị Hải", dept:"Plan (Kế hoạch)", position:"Nhân viên Kế hoạch", email:"hai.nguyen@jeanicgarment.com", phone:"0900000002", status:"Đang làm việc"}
+  ];
+  state.devices = [
+    {id:"TB001", type:"Chuột không dây", brand:"EBLUE", specs:"EMS816B Mouse", condition:"Tốt",
+     status:"Đang sử dụng", holderId:"NV002", holderName:"Nguyễn Thị Hải", dept:"Plan (Kế hoạch)",
+     importDate:"2025-01-10", note:"",
+     purchaseDate:"2025-01-08", purchasePrice:250000, vendor:"Phong Vũ", invoiceNo:"HD-2025-0012",
+     warrantyMonths:12, usefulLifeYears:2, salvageValue:0, repairs:[],
+     history:[{date:"2025-01-10T09:00:00.000Z", type:"ban_giao", label:"Bàn giao cho nhân viên", to:"Nguyễn Thị Hải", dept:"Plan (Kế hoạch)", condition:"Tốt", by:"Bùi Văn Hòa", note:"Nhập kho và bàn giao"}]},
+    {id:"TB002", type:'Laptop 15" + Sạc', brand:"Dell", specs:"Dell Inspiron 15, i5-1355U, RAM 16GB, SSD 512GB", condition:"Tốt",
+     status:"Đang sử dụng", holderId:"NV002", holderName:"Nguyễn Thị Hải", dept:"Plan (Kế hoạch)",
+     importDate:"2025-01-10", note:"",
+     purchaseDate:"2025-01-05", purchasePrice:18500000, vendor:"Thế Giới Di Động", invoiceNo:"HD-2025-0007",
+     warrantyMonths:24, usefulLifeYears:3, salvageValue:1000000,
+     repairs:[{date:"2026-05-14T08:00:00.000Z", vendor:"Trung tâm bảo hành Dell", description:"Thay bàn phím do liệt phím", cost:650000, by:"Bùi Văn Hòa"}],
+     history:[{date:"2026-07-06T09:00:00.000Z", type:"ban_giao", label:"Bàn giao cho nhân viên", to:"Nguyễn Thị Hải", dept:"Plan (Kế hoạch)", condition:"Tốt", by:"Bùi Văn Hòa", note:""}]}
+  ];
+  state.meta = {deviceSeq:3, employeeSeq:3};
+  state.settings = {...DEFAULT_SETTINGS};
+}
+
+/* =========================================================
+   HELPERS
+========================================================= */
 function pad3(n){ return String(n).padStart(3,"0"); }
 function nextDeviceId(){ return "TB" + pad3(state.meta.deviceSeq); }
 function nextEmployeeId(){ return "NV" + pad3(state.meta.employeeSeq); }
 function todayISO(){ return new Date().toISOString().slice(0,10); }
-function fmtDate(iso){ if(!iso) return "—"; const d = new Date(iso); return isNaN(d) ? iso : d.toLocaleDateString("vi-VN",{day:"2-digit",month:"2-digit",year:"numeric"}); }
-function fmtDateTime(iso){ const d = new Date(iso); return isNaN(d) ? iso : d.toLocaleDateString("vi-VN") + " " + d.toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"}); }
-function esc(s){ return (s===undefined||s===null) ? "" : String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
-function fmtVND(n){ return (n===null||n===undefined||n===""||isNaN(n)) ? "—" : Math.round(Number(n)).toLocaleString("vi-VN") + " ₫"; }
+function fmtDate(iso){ if(!iso) return "—"; const d=new Date(iso); if(isNaN(d)) return String(iso); return d.toLocaleDateString("vi-VN",{day:"2-digit",month:"2-digit",year:"numeric"}); }
+function fmtDateTime(iso){ const d=new Date(iso); if(isNaN(d)) return String(iso); return d.toLocaleDateString("vi-VN",{day:"2-digit",month:"2-digit",year:"numeric"})+" "+d.toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"}); }
+function esc(s){ return (s===undefined||s===null)?"":String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function fmtVND(n){ if(n===null||n===undefined||n===""||isNaN(n)) return "—"; return Math.round(Number(n)).toLocaleString("vi-VN")+" ₫"; }
+function monthsBetween(a,b){ let m=(b.getFullYear()-a.getFullYear())*12+(b.getMonth()-a.getMonth()); if(b.getDate()<a.getDate()) m-=1; return m; }
 
-function computeDepreciation(d){ /* Logic Khấu hao */ return {hasData:false}; }
-function warrantyInfo(d){ return {hasData:false}; }
-function repairTotal(d){ return (d.repairs||[]).reduce((s,r)=> s + (Number(r.cost)||0), 0); }
-function computeAlerts(){ return []; }
-
-const Store = {
-  async get(key){
-    try { const doc = await db.collection('jeanic_data').doc(key).get(); return doc.exists ? { value: doc.data().dataString } : null; } 
-    catch(e) { return null; }
-  },
-  async set(key, value){
-    try { await db.collection('jeanic_data').doc(key).set({ dataString: value }); return true; } 
-    catch(e) { return false; }
+function computeDepreciation(d){
+  const price = Number(d.purchasePrice)||0;
+  const salvage = Number(d.salvageValue)||0;
+  const lifeYears = Number(d.usefulLifeYears) || state.settings.usefulLifeYears;
+  const lifeMonths = Math.max(1, Math.round(lifeYears*12));
+  if(!d.purchaseDate || price<=0){
+    return {hasData:false, price:0, bookValue:null, percentUsed:0, monthsElapsed:0, lifeMonths, monthlyDep:0, accumDep:0};
   }
-};
-async function loadAll(){
-  const [d,e,m,s] = await Promise.all([ Store.get("jeanic-devices"), Store.get("jeanic-employees"), Store.get("jeanic-meta"), Store.get("jeanic-settings") ]);
-  if(d && e && m){ state.devices = JSON.parse(d.value); state.employees = JSON.parse(e.value); state.meta = JSON.parse(m.value); state.settings = s ? { ...DEFAULT_SETTINGS, ...JSON.parse(s.value) } : { ...DEFAULT_SETTINGS }; } 
-  else { state.meta = {deviceSeq:1, employeeSeq:1}; await persistAll(); }
+  const start = new Date(d.purchaseDate);
+  const now = new Date();
+  let monthsElapsed = monthsBetween(start, now);
+  monthsElapsed = Math.max(0, Math.min(monthsElapsed, lifeMonths));
+  const depreciableAmount = Math.max(0, price-salvage);
+  const monthlyDep = depreciableAmount/lifeMonths;
+  const accumDep = monthlyDep*monthsElapsed;
+  const bookValue = Math.max(salvage, price-accumDep);
+  const percentUsed = lifeMonths>0 ? Math.min(100, Math.round((monthsElapsed/lifeMonths)*100)) : 0;
+  return {hasData:true, price, salvage, lifeMonths, monthsElapsed, monthlyDep, accumDep, bookValue, percentUsed};
 }
-async function persistDevices(){ await Store.set("jeanic-devices", JSON.stringify(state.devices)); }
-async function persistEmployees(){ await Store.set("jeanic-employees", JSON.stringify(state.employees)); }
-async function persistMeta(){ await Store.set("jeanic-meta", JSON.stringify(state.meta)); }
-async function persistSettings(){ await Store.set("jeanic-settings", JSON.stringify(state.settings)); }
-async function persistAll(){ await Promise.all([persistDevices(), persistEmployees(), persistMeta(), persistSettings()]); }
-
-/* =========================================================
-   AUTH
-========================================================= */
-auth.onAuthStateChanged(async (user) => {
-  if (user) {
-    currentUser = user;
-    currentRole = ADMIN_EMAILS.includes(user.email) ? "admin" : "user";
-    
-    document.getElementById('login-overlay').style.display = 'none';
-    document.getElementById('shell').style.display = 'flex';
-    document.getElementById('currentUserEmail').innerText = user.email;
-    document.getElementById('currentUserRole').innerText = currentRole.toUpperCase();
-    
-    if (currentRole === 'user') {
-      const style = document.createElement('style'); style.id = "roleStyle";
-      style.innerHTML = '.admin-only { display: none !important; }';
-      document.head.appendChild(style);
-    } else {
-      const rs = document.getElementById("roleStyle"); if(rs) rs.remove();
+function warrantyInfo(d){
+  if(!d.purchaseDate || !d.warrantyMonths) return {hasData:false};
+  const start = new Date(d.purchaseDate);
+  const end = new Date(start);
+  end.setMonth(end.getMonth()+(Number(d.warrantyMonths)||0));
+  const now = new Date();
+  const daysLeft = Math.round((end-now)/86400000);
+  return {hasData:true, end, daysLeft, expired:daysLeft<0, endISO:end.toISOString().slice(0,10)};
+}
+function repairTotal(d){ return (d.repairs||[]).reduce((s,r)=>s+(Number(r.cost)||0),0); }
+function computeAlerts(){
+  const alerts = [];
+  state.devices.forEach(d=>{
+    if(d.status==="Thanh lý") return;
+    const dep = computeDepreciation(d);
+    const war = warrantyInfo(d);
+    const rTotal = repairTotal(d);
+    if(war.hasData && !war.expired && war.daysLeft<=state.settings.warrantyWarnDays){
+      alerts.push({device:d, kind:"warranty", text:`Sắp hết bảo hành (còn ${war.daysLeft} ngày)`});
+    } else if(war.hasData && war.expired && war.daysLeft>=-state.settings.warrantyWarnDays){
+      alerts.push({device:d, kind:"warranty-expired", text:`Đã hết bảo hành ${Math.abs(war.daysLeft)} ngày trước`});
     }
-    await loadAll(); setView("dashboard");
-  } else {
-    document.getElementById('login-overlay').style.display = 'flex';
-    document.getElementById('shell').style.display = 'none';
-  }
-});
-async function login() {
-  try { await auth.signInWithEmailAndPassword(document.getElementById('loginEmail').value, document.getElementById('loginPass').value); document.getElementById('loginErr').style.display = 'none'; } 
-  catch (error) { document.getElementById('loginErr').style.display = 'block'; }
+    if(dep.hasData){
+      if((100-dep.percentUsed)<=state.settings.depreciationWarnPercent){
+        alerts.push({device:d, kind:"depreciation", text:`Đã khấu hao ${dep.percentUsed}% — giá trị còn lại thấp`});
+      }
+      if(dep.price>0 && rTotal>=dep.price*state.settings.repairCostWarnPercent/100){
+        alerts.push({device:d, kind:"repair-cost", text:`Chi phí sửa chữa luỹ kế ${fmtVND(rTotal)} — cân nhắc thanh lý`});
+      }
+    }
+  });
+  return alerts;
 }
-function logout() { auth.signOut(); }
-
-/* =========================================================
-   TẠO TÀI KHOẢN (Tính năng mới)
-========================================================= */
-async function createNewUserAccount() {
-  const em = document.getElementById("newAccEmail").value.trim();
-  const pw = document.getElementById("newAccPass").value;
-  if(!em || pw.length < 6) { toast("Email không hợp lệ hoặc mật khẩu ngắn hơn 6 ký tự!", true); return; }
-  
-  const btn = document.getElementById("btnCreateAcc");
-  btn.innerText = "Đang tạo..."; btn.disabled = true;
-
-  try {
-    // Dùng app phụ để tạo tài khoản, tránh việc Admin bị đăng xuất
-    await secondaryApp.auth().createUserWithEmailAndPassword(em, pw);
-    await secondaryApp.auth().signOut(); // Đăng xuất khỏi app phụ
-    toast("Tạo tài khoản thành công!");
-    document.getElementById("newAccEmail").value = "";
-    document.getElementById("newAccPass").value = "";
-  } catch(err) {
-    toast("Lỗi: " + err.message, true);
-  } finally {
-    btn.innerText = "Tạo tài khoản"; btn.disabled = false;
-  }
+function downloadFile(content, filename, mime){
+  const blob = (content instanceof Blob) ? content : new Blob([content], {type:mime});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
 }
 
 /* =========================================================
-   UI HELPERS & NAV
+   TOAST / MODAL
 ========================================================= */
 function toast(msg, isErr){
-  const wrap = document.getElementById("toast-wrap"); const el = document.createElement("div");
-  el.className = "toast" + (isErr ? " err" : ""); el.textContent = msg; wrap.appendChild(el);
-  setTimeout(()=>{ el.remove(); }, 3200);
+  const wrap = document.getElementById("toast-wrap");
+  const el = document.createElement("div");
+  el.className = "toast"+(isErr?" err":"");
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(()=>el.remove(), 3400);
 }
 function openModal(title, bodyHtml, footHtml){
-  document.getElementById("modalBox").innerHTML = `<div class="modal-head"><h3>${title}</h3><button class="x-close" onclick="app.closeModal()">✕</button></div><div class="modal-body">${bodyHtml}</div><div class="modal-foot">${footHtml}</div>`;
+  document.getElementById("modalBox").innerHTML = `
+    <div class="modal-head"><h3>${title}</h3><button class="x-close" onclick="app.closeModal()">✕</button></div>
+    <div class="modal-body">${bodyHtml}</div>
+    <div class="modal-foot">${footHtml}</div>`;
   document.getElementById("modal-root").classList.add("open");
 }
 function closeModal(){ document.getElementById("modal-root").classList.remove("open"); }
 
-// Đã bổ sung mục "Quản lý Tài khoản"
-const NAV = [
-  {grp:"Tổng quan", items:[{id:"dashboard", label:"Bảng điều khiển", ico:"01"}]},
-  {grp:"Tài sản", items:[{id:"devices", label:"Thiết bị", ico:"◧"},{id:"employees", label:"Nhân viên", ico:"◨"}]},
-  {grp:"Nghiệp vụ", class:"admin-only", items:[{id:"ops", label:"Nghiệp vụ / Biên bản", ico:"⇄"}]},
-  {grp:"Theo dõi", items:[{id:"history", label:"Lịch sử hệ thống", ico:"≡"},{id:"finance", label:"Tài chính & Khấu hao", ico:"₫"}]},
-  {grp:"Hệ thống", class:"admin-only", items:[{id:"settings", label:"Cài đặt chung", ico:"⚙"}, {id:"accounts", label:"Quản lý Tài khoản", ico:"⊞"}]}
-];
-
-const PAGE_META = {
-  dashboard:["Bảng điều khiển","Tình trạng thiết bị CNTT"], devices:["Thiết bị","Sổ quản lý tài sản CNTT"],
-  employees:["Nhân viên","Danh sách nhân sự"], ops:["Nghiệp vụ","Quản lý giao nhận"],
-  history:["Lịch sử","Sự kiện vòng đời thiết bị"], finance:["Tài chính","Chi phí và khấu hao"],
-  settings:["Cài đặt","Cấu hình cảnh báo"], accounts:["Tài khoản", "Cấp quyền truy cập cho nhân viên"]
-};
-
-function renderNav(){
-  document.getElementById("mainNav").innerHTML = NAV.map(g => `
-    <div class="grp-label ${g.class||''}">${g.grp}</div>
-    ${g.items.map(it => `<button class="${state.view===it.id?'active':''} ${g.class||''}" onclick="app.setView('${it.id}')"><span class="ico">${it.ico}</span>${it.label}</button>`).join("")}
-  `).join("");
+/* =========================================================
+   AUTH
+========================================================= */
+async function resolveRole(user){
+  // Tài khoản trong danh sách ADMIN_EMAILS luôn là admin (tự "chữa lành" nếu chưa có hồ sơ)
+  const isHardAdmin = ADMIN_EMAILS.includes((user.email||"").toLowerCase());
+  if(Store.mode!=="cloud"){ return {role: isHardAdmin?"admin":"admin", active:true}; } // cục bộ: 1 mình dùng, coi như admin
+  try{
+    const doc = await db.collection("jeanic_accounts").doc(user.uid).get();
+    if(doc.exists){
+      const data = doc.data();
+      if(data.active===false) return {role:data.role||"user", active:false};
+      return {role:data.role || (isHardAdmin?"admin":"user"), active:true};
+    }
+    // Chưa có hồ sơ tài khoản trong Firestore (vd. tài khoản admin đầu tiên tạo trực tiếp trong Firebase Console)
+    if(isHardAdmin){
+      await db.collection("jeanic_accounts").doc(user.uid).set({
+        email:user.email, role:"admin", employeeId:null, active:true, createdAt:new Date().toISOString(), createdBy:"system"
+      });
+      return {role:"admin", active:true};
+    }
+    return {role:"user", active:true};
+  }catch(e){
+    console.error(e);
+    return {role: isHardAdmin?"admin":"user", active:true};
+  }
+}
+function applyRoleUI(){
+  document.body.classList.toggle("role-user", currentRole!=="admin");
+  document.getElementById("currentUserRole").textContent = currentRole==="admin" ? "QUẢN TRỊ" : "NGƯỜI DÙNG";
+  document.getElementById("sidebarFoot").innerHTML = Store.mode==="cloud"
+    ? `<span>●</span> ${esc(currentUser?.email||"")}`
+    : `<span class="mode-local">●</span> Chế độ cục bộ — dữ liệu lưu trên trình duyệt này`;
+}
+if(useFirebase){
+  auth.onAuthStateChanged(async (user)=>{
+    if(user){
+      const {role, active} = await resolveRole(user);
+      if(!active){
+        toast("Tài khoản đã bị vô hiệu hoá. Liên hệ quản trị viên.", true);
+        await auth.signOut();
+        return;
+      }
+      currentUser = {uid:user.uid, email:user.email};
+      currentRole = role;
+      document.getElementById("login-overlay").style.display = "none";
+      document.getElementById("shell").style.display = "flex";
+      applyRoleUI();
+      await loadAll();
+      setView("dashboard");
+    } else {
+      document.getElementById("login-overlay").style.display = "flex";
+      document.getElementById("shell").style.display = "none";
+    }
+  });
+} else {
+  // Không có Firebase khả dụng -> hiện tuỳ chọn vào thẳng chế độ cục bộ
+  document.getElementById("localModeNote").style.display = "flex";
+}
+async function login(){
+  const email = document.getElementById("loginEmail").value.trim();
+  const pass = document.getElementById("loginPass").value;
+  const errBox = document.getElementById("loginErr");
+  errBox.classList.remove("show");
+  if(!useFirebase){ toast("Không có kết nối máy chủ — dùng 'Vào thẳng không cần đăng nhập'", true); return; }
+  try{
+    await auth.signInWithEmailAndPassword(email, pass);
+  }catch(e){
+    errBox.textContent = "Sai email hoặc mật khẩu, hoặc tài khoản chưa tồn tại.";
+    errBox.classList.add("show");
+  }
+}
+function logout(){
+  if(useFirebase && currentUser){ auth.signOut(); }
+  else { location.reload(); }
+}
+async function enterLocalMode(){
+  currentUser = {uid:"local", email:"local@offline"};
+  currentRole = "admin";
+  document.getElementById("login-overlay").style.display = "none";
+  document.getElementById("shell").style.display = "flex";
+  applyRoleUI();
+  await loadAll();
+  setView("dashboard");
 }
 
+/* =========================================================
+   NAV / ROUTER
+========================================================= */
+const NAV = [
+  {grp:"Tổng quan", items:[{id:"dashboard", label:"Bảng điều khiển", ico:"01"}]},
+  {grp:"Tài sản", items:[
+    {id:"devices", label:"Thiết bị", ico:"◧"},
+    {id:"employees", label:"Nhân viên", ico:"◨"}
+  ]},
+  {grp:"Nghiệp vụ", items:[{id:"ops", label:"Bàn giao / Thu hồi / Điều chuyển", ico:"⇄"}]},
+  {grp:"Theo dõi", items:[
+    {id:"history", label:"Lịch sử toàn hệ thống", ico:"≡"},
+    {id:"finance", label:"Tài chính & Khấu hao", ico:"₫"}
+  ]},
+  {grp:"Hệ thống", admin:true, items:[
+    {id:"import", label:"Nhập từ Excel/CSV", ico:"⇩"},
+    {id:"accounts", label:"Tài khoản nhân viên", ico:"⚿"},
+    {id:"settings", label:"Cài đặt", ico:"⚙"}
+  ]}
+];
+function renderNav(){
+  const nav = document.getElementById("mainNav");
+  nav.innerHTML = NAV.filter(g=>!g.admin || currentRole==="admin").map(g=>`
+    <div class="grp-label">${g.grp}</div>
+    ${g.items.map(it=>`<button class="${state.view===it.id?'active':''}" onclick="app.setView('${it.id}')"><span class="ico">${it.ico}</span>${it.label}</button>`).join("")}
+  `).join("");
+}
+const PAGE_META = {
+  dashboard:["Bảng điều khiển","Tình trạng thiết bị CNTT toàn công ty"],
+  devices:["Thiết bị","Sổ quản lý tài sản CNTT — vòng đời từng thiết bị"],
+  employees:["Nhân viên","Danh sách nhân viên dùng cho bàn giao / thu hồi / điều chuyển"],
+  ops:["Nghiệp vụ","Lập biên bản bàn giao, thu hồi, điều chuyển, bảo trì, thanh lý, sửa chữa"],
+  history:["Lịch sử toàn hệ thống","Toàn bộ sự kiện vòng đời của mọi thiết bị"],
+  finance:["Tài chính & Khấu hao","Giá trị đầu tư, khấu hao và chi phí sửa chữa toàn bộ thiết bị"],
+  import:["Nhập từ Excel/CSV","Nhập dữ liệu hàng loạt từ file Excel (.xlsx/.xls) hoặc CSV"],
+  accounts:["Tài khoản nhân viên","Cấp và quản lý tài khoản đăng nhập cho nhân viên IT"],
+  settings:["Cài đặt","Cấu hình mặc định khấu hao, bảo hành và ngưỡng cảnh báo"]
+};
 function setView(view, arg){
-  state.view = view; renderNav();
+  if(NAV.some(g=>g.admin && g.items.some(it=>it.id===view)) && currentRole!=="admin"){
+    toast("Chỉ quản trị viên mới truy cập được mục này", true); view="dashboard";
+  }
+  state.view = view; state.currentId = arg;
+  renderNav();
   const meta = PAGE_META[view] || PAGE_META.devices;
-  document.getElementById("pageTitle").textContent = meta[0]; document.getElementById("pageDesc").textContent = meta[1];
+  document.getElementById("pageTitle").textContent = meta[0];
+  document.getElementById("pageDesc").textContent = meta[1];
   document.getElementById("topbarActions").innerHTML = "";
-  
   if(view==="dashboard") renderDashboard();
   else if(view==="devices") renderDevices();
   else if(view==="device") renderDeviceDetail(arg);
@@ -386,128 +619,1106 @@ function setView(view, arg){
   else if(view==="ops") renderOps();
   else if(view==="history") renderHistory();
   else if(view==="finance") renderFinance();
+  else if(view==="import") renderImport();
+  else if(view==="accounts") renderAccounts();
   else if(view==="settings") renderSettings();
-  else if(view==="accounts") renderAccounts(); // Gọi giao diện tạo tài khoản
+  window.scrollTo(0,0);
 }
 
 /* =========================================================
-   RENDER LOGIC
+   DASHBOARD
 ========================================================= */
 function renderDashboard(){
+  const total = state.devices.length;
+  const byStatus = {};
+  state.devices.forEach(d=>byStatus[d.status]=(byStatus[d.status]||0)+1);
+  const recent = [];
+  state.devices.forEach(d=>(d.history||[]).forEach(h=>recent.push({...h, deviceId:d.id, deviceType:d.type})));
+  recent.sort((a,b)=>new Date(b.date)-new Date(a.date));
+  let totalInvested=0, totalBookValue=0;
+  state.devices.forEach(d=>{ const dep=computeDepreciation(d); if(dep.hasData){ totalInvested+=dep.price; totalBookValue+=dep.bookValue; } });
+  const alerts = computeAlerts();
+
   document.getElementById("content").innerHTML = `
     <div class="grid-stats">
-      <div class="stat-card"><div class="n">${state.devices.length}</div><div class="l">Tổng thiết bị</div></div>
+      <div class="stat-card"><div class="n">${total}</div><div class="l">Tổng thiết bị</div></div>
+      <div class="stat-card accent-brand"><div class="n">${byStatus["Đang sử dụng"]||0}</div><div class="l">Đang sử dụng</div></div>
+      <div class="stat-card accent-slate"><div class="n">${byStatus["Trong kho"]||0}</div><div class="l">Trong kho</div></div>
+      <div class="stat-card accent-amber"><div class="n">${byStatus["Bảo trì"]||0}</div><div class="l">Đang bảo trì</div></div>
+      <div class="stat-card accent-rust"><div class="n">${byStatus["Thanh lý"]||0}</div><div class="l">Đã thanh lý</div></div>
+    </div>
+    <div class="grid-stats" style="grid-template-columns:repeat(3,1fr);">
+      <div class="stat-card accent-brand"><div class="n" style="font-size:19px;">${fmtVND(totalInvested)}</div><div class="l">Tổng giá trị đầu tư (nguyên giá)</div></div>
+      <div class="stat-card accent-slate"><div class="n" style="font-size:19px;">${fmtVND(totalBookValue)}</div><div class="l">Giá trị còn lại ước tính</div></div>
+      <div class="stat-card ${alerts.length?'accent-rust':'accent-brand'}"><div class="n">${alerts.length}</div><div class="l">Thiết bị cần chú ý</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Cần chú ý</h3><button class="btn btn-sm" onclick="app.setView('finance')">Xem Tài chính & Khấu hao →</button></div>
+      ${alerts.length===0 ? emptyState("Không có cảnh báo","Chưa có thiết bị nào sắp hết bảo hành, gần hết khấu hao hoặc chi phí sửa chữa cao bất thường.") : `
+      <table class="data"><tr><th style="padding-left:22px;">Thiết bị</th><th>Cảnh báo</th></tr>
+      ${alerts.slice(0,8).map(a=>`
+        <tr class="rowclick" onclick="app.setView('device','${a.device.id}')">
+          <td style="padding-left:22px;"><b>${esc(a.device.id)}</b><div class="cell-sub">${esc(a.device.type)}</div></td>
+          <td><span class="pill ${a.kind==='warranty'?'pill-amber':a.kind==='warranty-expired'?'pill-rust':a.kind==='depreciation'?'pill-slate':'pill-rust'}">${esc(a.text)}</span></td>
+        </tr>`).join("")}</table>`}
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Hoạt động gần đây</h3><button class="btn btn-sm" onclick="app.setView('history')">Xem tất cả →</button></div>
+      ${recent.length===0 ? emptyState("Chưa có hoạt động nào","Các sự kiện bàn giao, thu hồi, điều chuyển sẽ hiển thị ở đây.") : `
+      <table class="data"><tr><th>Ngày</th><th>Thiết bị</th><th>Sự kiện</th><th>Chi tiết</th></tr>
+      ${recent.slice(0,8).map(h=>`
+        <tr><td style="white-space:nowrap;font-family:var(--font-mono);font-size:12px;color:var(--ink-soft)">${fmtDateTime(h.date)}</td>
+        <td><b>${esc(h.deviceId)}</b><div class="cell-sub">${esc(h.deviceType||"")}</div></td>
+        <td>${esc(h.label)}</td><td class="cell-sub">${eventDetailLine(h)}</td></tr>`).join("")}</table>`}
     </div>
     <div class="panel">
       <div class="panel-head"><h3>Bắt đầu nhanh</h3></div>
       <div class="tiles">
-        <button class="tile" onclick="app.openDeviceForm()"><div class="ico">Nhập liệu</div><h4>Thêm thiết bị mới</h4></button>
-        <button class="tile" onclick="app.setView('devices')"><div class="ico">Tra cứu</div><h4>Xem danh sách</h4></button>
+        <button class="tile" onclick="app.openDeviceForm()"><div class="ico">Nhập kho</div><h4>Thêm thiết bị mới</h4><p>Đăng ký thiết bị mới nhận về kho CNTT — kèm giá mua và thời gian khấu hao.</p></button>
+        <button class="tile" onclick="app.setView('ops')"><div class="ico">Nghiệp vụ</div><h4>Lập biên bản</h4><p>Bàn giao, thu hồi hoặc điều chuyển thiết bị.</p></button>
+        <button class="tile" onclick="app.setView('import')"><div class="ico">Excel</div><h4>Nhập dữ liệu từ Excel</h4><p>Import hàng loạt danh sách thiết bị / nhân viên từ file Excel/CSV.</p></button>
       </div>
     </div>
   `;
 }
+function emptyState(title, sub){
+  return `<div class="empty"><div class="big">·</div><b>${esc(title)}</b><p>${esc(sub)}</p></div>`;
+}
 
+/* =========================================================
+   THIẾT BỊ
+========================================================= */
+let deviceFilter = {q:"", status:"all", dept:"all"};
 function renderDevices(){
-  // Đã bỏ class admin-only ở nút "+ Thêm thiết bị" để User cũng có thể bấm thêm
   document.getElementById("topbarActions").innerHTML = `<button class="btn btn-brand" onclick="app.openDeviceForm()">+ Thêm thiết bị</button>`;
+  const q = deviceFilter.q.toLowerCase();
+  const list = state.devices.filter(d=>{
+    if(deviceFilter.status!=="all" && d.status!==deviceFilter.status) return false;
+    if(deviceFilter.dept!=="all" && d.dept!==deviceFilter.dept) return false;
+    if(q && !(`${d.id} ${d.type} ${d.brand} ${d.holderName||""}`.toLowerCase().includes(q))) return false;
+    return true;
+  });
+  const alertIds = new Set(computeAlerts().map(a=>a.device.id));
   document.getElementById("content").innerHTML = `
+    <div class="toolbar">
+      <input type="search" placeholder="Tìm theo mã TB, loại, thương hiệu, người dùng…" value="${esc(deviceFilter.q)}" oninput="app.setDeviceFilter('q', this.value)">
+      <select onchange="app.setDeviceFilter('status', this.value)">
+        <option value="all">Tất cả trạng thái</option>
+        ${Object.keys(STATUS_META).map(s=>`<option value="${s}" ${deviceFilter.status===s?'selected':''}>${s}</option>`).join("")}
+      </select>
+      <select onchange="app.setDeviceFilter('dept', this.value)">
+        <option value="all">Tất cả bộ phận</option>
+        ${DEPARTMENTS.map(dp=>`<option value="${dp}" ${deviceFilter.dept===dp?'selected':''}>${dp}</option>`).join("")}
+      </select>
+    </div>
     <div class="panel" style="padding:14px 0 4px;">
-      <table class="data"><tr><th style="padding-left:22px;">Mã TB</th><th>Loại / Thương hiệu</th><th>Tình trạng</th><th>Trạng thái</th></tr>
-        ${state.devices.map(d=>`<tr class="rowclick" onclick="app.setView('device', '${d.id}')">
-            <td style="padding-left:22px; font-weight: bold;">${d.id}</td>
+      ${list.length===0 ? emptyState("Không tìm thấy thiết bị","Thử đổi bộ lọc, hoặc thêm thiết bị mới.") : `
+      <table class="data">
+        <tr><th style="padding-left:22px;">Mã TB</th><th>Loại / Thương hiệu</th><th>Tình trạng</th><th>Trạng thái</th><th>Người dùng</th><th>Bộ phận</th><th></th></tr>
+        ${list.map(d=>`
+          <tr class="rowclick" onclick="app.setView('device','${d.id}')">
+            <td style="padding-left:22px;"><b>${esc(d.id)}</b></td>
             <td><div class="cell-title">${esc(d.type)}</div><div class="cell-sub">${esc(d.brand)}</div></td>
-            <td>${esc(d.condition)}</td><td><span class="pill ${STATUS_META[d.status]?.pill||'pill-slate'}">${esc(d.status)}</span></td>
+            <td>${esc(d.condition)}</td>
+            <td><span class="pill ${STATUS_META[d.status]?.pill||'pill-slate'}">${esc(d.status)}</span></td>
+            <td>${esc(d.holderName||"—")}</td>
+            <td>${esc(d.dept||"—")}</td>
+            <td>${alertIds.has(d.id)?'<span class="pill pill-rust">⚠ Chú ý</span>':""}</td>
           </tr>`).join("")}
-      </table>
+      </table>`}
     </div>
   `;
 }
+function setDeviceFilter(k,v){ deviceFilter[k]=v; renderDevices(); }
 
 function renderDeviceDetail(id){
   const d = state.devices.find(x=>x.id===id);
-  // User cũng có thể nhấn "Sửa thông tin" để bổ sung cấu hình/ngày mua
   document.getElementById("topbarActions").innerHTML = `
-    <button class="btn" onclick="app.setView('devices')">← Quay lại</button>
+    <button class="btn" onclick="app.setView('devices')">← Danh sách</button>
     <button class="btn" onclick="app.openDeviceForm('${id}')">Sửa thông tin</button>
+    <button class="btn btn-brand" onclick="app.openOpForm('sua_chua','${id}')">+ Ghi nhận sửa chữa</button>
   `;
-  document.getElementById("content").innerHTML = `
+  if(!d){ document.getElementById("content").innerHTML = emptyState("Không tìm thấy thiết bị","Thiết bị có thể đã bị xoá."); return; }
+  document.getElementById("pageTitle").textContent = d.id;
+  document.getElementById("pageDesc").textContent = d.type+" · "+d.brand;
+
+  const dep = computeDepreciation(d);
+  const war = warrantyInfo(d);
+  const rTotal = repairTotal(d);
+
+  const financeBlock = `
     <div class="panel">
-      <div class="kv"><b>Mã thiết bị</b><span>${esc(d.id)}</span></div>
-      <div class="kv"><b>Loại / Hiệu</b><span>${esc(d.type)} - ${esc(d.brand)}</span></div>
-      <div class="kv"><b>Ghi chú</b><span>${esc(d.note||"—")}</span></div>
+      <h3>Tài chính & Khấu hao</h3>
+      <div class="kv"><b>Ngày mua</b><span>${fmtDate(d.purchaseDate)}</span></div>
+      <div class="kv"><b>Giá mua (nguyên giá)</b><span>${fmtVND(d.purchasePrice)}</span></div>
+      <div class="kv"><b>Nhà cung cấp</b><span>${esc(d.vendor||"—")}</span></div>
+      <div class="kv"><b>Số hoá đơn</b><span>${esc(d.invoiceNo||"—")}</span></div>
+      <div class="kv"><b>Bảo hành</b><span>${
+        !war.hasData ? "—" :
+        war.expired ? `<span class="pill pill-rust">Hết hạn ${fmtDate(war.endISO)}</span>` :
+        war.daysLeft<=state.settings.warrantyWarnDays ? `<span class="pill pill-amber">Còn ${war.daysLeft} ngày (đến ${fmtDate(war.endISO)})</span>` :
+        `<span class="pill pill-brand">Còn hạn đến ${fmtDate(war.endISO)}</span>`
+      }</span></div>
+      ${dep.hasData ? `
+      <div class="kv"><b>Thời gian khấu hao</b><span>${(d.usefulLifeYears||state.settings.usefulLifeYears)} năm</span></div>
+      <div class="kv"><b>Giá trị còn lại</b><span><b style="color:var(--brand-dark)">${fmtVND(dep.bookValue)}</b> (đã khấu hao ${dep.percentUsed}%)</span></div>
+      <div style="margin-top:8px;background:var(--line-soft);border-radius:6px;height:8px;overflow:hidden;">
+        <div style="width:${dep.percentUsed}%;height:100%;background:${(100-dep.percentUsed)<=state.settings.depreciationWarnPercent?'var(--rust)':'var(--brand)'};"></div>
+      </div>` : `<div class="hint">Chưa có Giá mua / Ngày mua — bấm "Sửa thông tin" để bổ sung, hệ thống sẽ tự tính khấu hao.</div>`}
+      <div class="kv" style="margin-top:8px;"><b>Tổng chi phí sửa chữa</b><span>${fmtVND(rTotal)}${dep.price>0 && rTotal>=dep.price*state.settings.repairCostWarnPercent/100 ? ` <span class="pill pill-rust">Cao — cân nhắc thanh lý</span>`:""}</span></div>
     </div>
-  `;
-}
+    <div class="panel">
+      <div class="panel-head"><h3>Lịch sử sửa chữa</h3><button class="btn btn-sm" onclick="app.openOpForm('sua_chua','${d.id}')">+ Ghi nhận</button></div>
+      ${(d.repairs&&d.repairs.length) ? `
+      <table class="data"><tr><th>Ngày</th><th>Đơn vị sửa</th><th>Mô tả</th><th>Chi phí</th></tr>
+      ${[...d.repairs].sort((a,b)=>new Date(b.date)-new Date(a.date)).map(r=>`
+        <tr><td style="white-space:nowrap;font-family:var(--font-mono);font-size:12px;color:var(--ink-soft)">${fmtDate((r.date||"").slice(0,10))}</td>
+        <td>${esc(r.vendor||"—")}</td><td class="cell-sub">${esc(r.description||"")}</td><td>${fmtVND(r.cost)}</td></tr>`).join("")}
+      </table>` : emptyState("Chưa có lần sửa chữa nào","Ghi nhận chi phí và mô tả mỗi lần sửa chữa để theo dõi tổng chi phí bảo trì.")}
+    </div>`;
 
-function renderEmployees(){
-  document.getElementById("topbarActions").innerHTML = `<button class="btn btn-brand admin-only" onclick="app.openEmployeeForm()">+ Thêm nhân viên</button>`;
-  document.getElementById("content").innerHTML = `<div class="panel"><table class="data"><tr><th>Mã NV</th><th>Họ tên</th><th>Bộ phận</th></tr>${state.employees.map(e=>`<tr><td>${e.id}</td><td>${esc(e.name)}</td><td>${esc(e.dept)}</td></tr>`).join("")}</table></div>`;
-}
-
-function renderAccounts(){
-  // Chỉ Admin mới được vào trang này
-  if(currentRole !== 'admin') { document.getElementById("content").innerHTML = "<div class='empty'><p>Không có quyền truy cập.</p></div>"; return; }
-  
   document.getElementById("content").innerHTML = `
-    <div class="panel" style="max-width:500px;">
-      <h3>Tạo tài khoản đăng nhập cho nhân viên</h3>
-      <p style="font-size:13px; color:var(--ink-soft); margin-bottom:20px;">
-        Các tài khoản được tạo tại đây sẽ tự động được cấp quyền <b>User</b>. Người dùng có thể đăng nhập để giúp IT thêm mới, sửa và nhập liệu danh sách thiết bị. 
-        <br><br><i>(Các tính năng như Điều chuyển, Thu hồi, Cài đặt vẫn sẽ bị ẩn với họ).</i>
-      </p>
-      
-      <div class="field">
-        <label class="req">Email nội bộ (Tên đăng nhập)</label>
-        <input type="email" id="newAccEmail" placeholder="vd: nhanvien@jeanicgarment.com">
+    <div class="detail-grid">
+      <div>
+        <div class="panel">
+          <div class="panel-head"><h3>${esc(d.id)}</h3><span class="pill ${STATUS_META[d.status]?.pill||'pill-slate'}">${esc(d.status)}</span></div>
+          <div class="kv"><b>Loại thiết bị</b><span>${esc(d.type)}</span></div>
+          <div class="kv"><b>Thương hiệu</b><span>${esc(d.brand)}</span></div>
+          <div class="kv"><b>Tình trạng</b><span>${esc(d.condition)}</span></div>
+          <div class="kv"><b>Người dùng</b><span>${esc(d.holderName||"—")}</span></div>
+          <div class="kv"><b>Bộ phận</b><span>${esc(d.dept||"—")}</span></div>
+          <div class="kv"><b>Ngày nhập kho</b><span>${fmtDate(d.importDate)}</span></div>
+          <div style="margin-top:14px;"><b style="font-size:12px;color:var(--ink-soft);">Thông số kỹ thuật</b><div class="specs-box" style="margin-top:6px;">${esc(d.specs||"—")}</div></div>
+          ${d.note ? `<div style="margin-top:12px;"><b style="font-size:12px;color:var(--ink-soft);">Ghi chú</b><div class="specs-box" style="margin-top:6px;">${esc(d.note)}</div></div>` : ""}
+        </div>
+        ${financeBlock}
       </div>
-      <div class="field">
-        <label class="req">Mật khẩu khởi tạo</label>
-        <input type="password" id="newAccPass" placeholder="Ít nhất 6 ký tự">
+      <div>
+        <div class="panel">
+          <h3>Vòng đời thiết bị</h3>
+          ${(d.history&&d.history.length) ? `<div class="timeline">${d.history.map(h=>`
+            <div class="tl-item">
+              <div class="tl-date">${fmtDateTime(h.date)}</div>
+              <div class="tl-label">${esc(h.label)}</div>
+              <div class="tl-detail">${eventDetailLine(h)}${h.note?`<br>${esc(h.note)}`:""}${h.by?`<br>Thực hiện: ${esc(h.by)}`:""}</div>
+            </div>`).join("")}</div>` : emptyState("Chưa có sự kiện","Lịch sử bàn giao/thu hồi sẽ hiển thị ở đây.")}
+        </div>
       </div>
-      
-      <div style="margin-top: 20px;">
-        <button id="btnCreateAcc" class="btn btn-brand" onclick="app.createNewUserAccount()">Tạo tài khoản</button>
-      </div>
-    </div>
-  `;
+    </div>`;
 }
-
-// Các hàm rỗng giữ chỗ để code chạy ổn định
-function renderOps(){ document.getElementById("content").innerHTML = `<div class="empty"><p>Nghiệp vụ (Chỉ dành cho Admin)</p></div>`; }
-function renderHistory(){ document.getElementById("content").innerHTML = `<div class="empty"><p>Lịch sử hệ thống</p></div>`; }
-function renderFinance(){ document.getElementById("content").innerHTML = `<div class="empty"><p>Báo cáo tài chính</p></div>`; }
-function renderSettings(){ document.getElementById("content").innerHTML = `<div class="empty"><p>Trang cài đặt</p></div>`; }
+function eventDetailLine(h){
+  if(h.type==="ban_giao") return `Giao cho <b>${esc(h.to||"")}</b> (${esc(h.dept||"")}) — tình trạng: ${esc(h.condition||"")}`;
+  if(h.type==="thu_hoi") return `Thu hồi từ <b>${esc(h.from||"")}</b> — tình trạng: ${esc(h.condition||"")} — lý do: ${esc(h.reason||"—")}`;
+  if(h.type==="dieu_chuyen") return `Điều chuyển từ <b>${esc(h.from||"")}</b> sang <b>${esc(h.to||"")}</b> (${esc(h.dept||"")})`;
+  if(h.type==="bao_tri_bat_dau") return `Gửi bảo trì — lý do: ${esc(h.reason||"—")}`;
+  if(h.type==="bao_tri_xong") return `Hoàn tất bảo trì, nhập lại kho — tình trạng: ${esc(h.condition||"")}`;
+  if(h.type==="thanh_ly") return `Lý do: ${esc(h.reason||"—")}`;
+  if(h.type==="sua_chua") return `${esc(h.reason||"Sửa chữa")}${h.vendor?` — tại ${esc(h.vendor)}`:""} — chi phí ${fmtVND(h.cost)}`;
+  return esc(h.note||"");
+}
 
 /* =========================================================
-   THÊM / SỬA THIẾT BỊ
+   NHÂN VIÊN
+========================================================= */
+let employeeQuery = "";
+function renderEmployees(){
+  document.getElementById("topbarActions").innerHTML = `<button class="btn btn-brand" onclick="app.openEmployeeForm()">+ Thêm nhân viên</button>`;
+  const q = employeeQuery.toLowerCase();
+  const list = state.employees.filter(e=>!q || `${e.id} ${e.name} ${e.dept}`.toLowerCase().includes(q));
+  document.getElementById("content").innerHTML = `
+    <div class="toolbar"><input type="search" placeholder="Tìm theo mã NV, họ tên, bộ phận…" value="${esc(employeeQuery)}" oninput="app.setEmployeeQuery(this.value)"></div>
+    <div class="panel" style="padding:14px 0 4px;">
+      ${list.length===0 ? emptyState("Chưa có nhân viên","Thêm nhân viên để dùng trong nghiệp vụ bàn giao/thu hồi.") : `
+      <table class="data">
+        <tr><th style="padding-left:22px;">Mã NV</th><th>Họ và tên</th><th>Bộ phận</th><th>Chức vụ</th><th>Liên hệ</th><th>Trạng thái</th></tr>
+        ${list.map(e=>`
+          <tr onclick="app.openEmployeeForm('${e.id}')" class="rowclick">
+            <td style="padding-left:22px;"><b>${esc(e.id)}</b></td>
+            <td>${esc(e.name)}</td><td>${esc(e.dept)}</td><td>${esc(e.position||"—")}</td>
+            <td class="cell-sub">${esc(e.email||"—")}<br>${esc(e.phone||"")}</td>
+            <td><span class="pill ${e.status==='Đang làm việc'?'pill-brand':'pill-slate'}">${esc(e.status||"Đang làm việc")}</span></td>
+          </tr>`).join("")}
+      </table>`}
+    </div>`;
+}
+function setEmployeeQuery(v){ employeeQuery=v; renderEmployees(); }
+
+/* =========================================================
+   FORM: THIẾT BỊ (thêm/sửa) — có đầy đủ giá mua & khấu hao
 ========================================================= */
 function openDeviceForm(id){
-  const d = id ? state.devices.find(x=>x.id===id) : null; const isEdit = !!d;
-  openModal(isEdit ? `Sửa thiết bị ${d.id}` : "Thêm thiết bị mới", `
+  const d = id ? state.devices.find(x=>x.id===id) : null;
+  const isEdit = !!d;
+  openModal(isEdit?`Sửa thiết bị ${id}`:"Thêm thiết bị mới", `
     <div class="field"><label>Mã thiết bị</label><input value="${isEdit?d.id:nextDeviceId()}" disabled></div>
-    <div class="field-row"><div class="field"><label class="req">Loại</label><input id="fType" list="typeList" value="${esc(d?.type||"")}"><datalist id="typeList">${DEVICE_TYPES.map(t=>`<option value="${t}">`).join("")}</datalist></div><div class="field"><label class="req">Hiệu</label><input id="fBrand" list="brandList" value="${esc(d?.brand||"")}"><datalist id="brandList">${BRANDS.map(b=>`<option value="${b}">`).join("")}</datalist></div></div>
-    <div class="field"><label>Ghi chú</label><textarea id="fNote">${esc(d?.note||"")}</textarea></div>
-  `, `<button class="btn btn-ghost" onclick="app.closeModal()">Huỷ</button><button class="btn btn-brand" onclick="app.saveDevice(${isEdit?`'${id}'`:'null'})">Lưu dữ liệu</button>`);
+    <div class="field-row">
+      <div class="field"><label class="req">Loại thiết bị</label><input id="fType" list="dlTypes" value="${esc(d?.type||"")}" placeholder="VD: Laptop"></div>
+      <div class="field"><label class="req">Thương hiệu</label><input id="fBrand" list="dlBrands" value="${esc(d?.brand||"")}" placeholder="VD: Dell"></div>
+    </div>
+    <datalist id="dlTypes">${DEVICE_TYPES.map(t=>`<option value="${t}">`).join("")}</datalist>
+    <datalist id="dlBrands">${BRANDS.map(b=>`<option value="${b}">`).join("")}</datalist>
+    <div class="field"><label>Thông số kỹ thuật</label><textarea id="fSpecs" placeholder="CPU, RAM, ổ cứng, seri máy...">${esc(d?.specs||"")}</textarea></div>
+    <div class="field-row">
+      <div class="field"><label>Tình trạng</label><select id="fCondition">${CONDITIONS.map(c=>`<option value="${c}" ${d?.condition===c?'selected':''}>${c}</option>`).join("")}</select></div>
+      <div class="field"><label>Ngày nhập kho</label><input type="date" id="fImportDate" value="${d?.importDate||todayISO()}"></div>
+    </div>
+    <div class="panel dashed" style="padding:14px 14px 2px;margin:4px 0 16px;">
+      <div class="hint" style="margin:0 0 10px;font-weight:600;color:var(--ink);">Giá trị tài sản & Khấu hao</div>
+      <div class="field-row">
+        <div class="field"><label>Ngày mua</label><input type="date" id="fPurchaseDate" value="${d?.purchaseDate||""}"></div>
+        <div class="field"><label>Giá mua (VNĐ)</label><input type="number" min="0" step="1000" id="fPurchasePrice" value="${d?.purchasePrice||""}" placeholder="VD: 18500000"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Nhà cung cấp</label><input id="fVendor" value="${esc(d?.vendor||"")}" placeholder="VD: Thế Giới Di Động"></div>
+        <div class="field"><label>Số hoá đơn</label><input id="fInvoiceNo" value="${esc(d?.invoiceNo||"")}" placeholder="VD: HD-2026-0001"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Thời gian khấu hao (năm)</label><input type="number" min="0.5" step="0.5" id="fUsefulLifeYears" value="${d?.usefulLifeYears??state.settings.usefulLifeYears}"></div>
+        <div class="field"><label>Bảo hành (tháng)</label><input type="number" min="0" id="fWarrantyMonths" value="${d?.warrantyMonths??state.settings.warrantyMonths}"></div>
+      </div>
+      <div class="field"><label>Giá trị thanh lý ước tính (VNĐ)</label><input type="number" min="0" step="1000" id="fSalvageValue" value="${d?.salvageValue||0}"></div>
+    </div>
+    <div class="field"><label>Ghi chú</label><input id="fNote" value="${esc(d?.note||"")}"></div>
+    ${!isEdit ? `
+    <div class="field"><label>Bàn giao ngay cho nhân viên (không bắt buộc)</label>
+      <select id="fHolder"><option value="">— Để trong kho —</option>${state.employees.map(e=>`<option value="${e.id}">${esc(e.name)} (${esc(e.dept)})</option>`).join("")}</select>
+    </div>` : ""}
+  `, `<button class="btn btn-ghost" onclick="app.closeModal()">Huỷ</button><button class="btn btn-brand" onclick="app.saveDevice(${isEdit?`'${id}'`:'null'})">Lưu thiết bị</button>`);
 }
-
 async function saveDevice(id){
-  const type = document.getElementById("fType").value; const brand = document.getElementById("fBrand").value;
-  if(!type || !brand){ toast("Nhập đủ loại & hiệu", true); return; }
-  
+  const type = document.getElementById("fType").value.trim();
+  const brand = document.getElementById("fBrand").value.trim();
+  if(!type || !brand){ toast("Vui lòng nhập Loại thiết bị và Thương hiệu", true); return; }
+  const specs = document.getElementById("fSpecs").value.trim();
+  const condition = document.getElementById("fCondition").value;
+  const importDate = document.getElementById("fImportDate").value;
+  const note = document.getElementById("fNote").value.trim();
+  const purchaseDate = document.getElementById("fPurchaseDate").value || "";
+  const purchasePrice = Number(document.getElementById("fPurchasePrice").value) || 0;
+  const vendor = document.getElementById("fVendor").value.trim();
+  const invoiceNo = document.getElementById("fInvoiceNo").value.trim();
+  const usefulLifeYears = Number(document.getElementById("fUsefulLifeYears").value) || state.settings.usefulLifeYears;
+  const warrantyMonths = Number(document.getElementById("fWarrantyMonths").value) || 0;
+  const salvageValue = Number(document.getElementById("fSalvageValue").value) || 0;
+
   if(id){
-    const d = state.devices.find(x=>x.id===id); d.type=type; d.brand=brand; d.note=document.getElementById("fNote").value;
+    const d = state.devices.find(x=>x.id===id);
+    Object.assign(d, {type,brand,specs,condition,importDate,note,purchaseDate,purchasePrice,vendor,invoiceNo,usefulLifeYears,warrantyMonths,salvageValue});
   } else {
-    const d = { id:nextDeviceId(), type, brand, condition:"Mới", status:"Trong kho", holderId:null, holderName:null, dept:"", importDate:todayISO(), note:document.getElementById("fNote").value, repairs:[], history:[] };
-    state.devices.push(d); state.meta.deviceSeq++; await persistMeta();
+    const holderSel = document.getElementById("fHolder");
+    const empId = holderSel ? holderSel.value : "";
+    const emp = state.employees.find(e=>e.id===empId);
+    const newId = nextDeviceId();
+    const d = {
+      id:newId, type, brand, specs, condition,
+      status: emp ? "Đang sử dụng" : "Trong kho",
+      holderId: emp?emp.id:null, holderName: emp?emp.name:null, dept: emp?emp.dept:"",
+      importDate, note, purchaseDate, purchasePrice, vendor, invoiceNo, usefulLifeYears, warrantyMonths, salvageValue,
+      repairs:[], history:[]
+    };
+    if(emp){ d.history.push({date:new Date().toISOString(), type:"ban_giao", label:"Bàn giao cho nhân viên", to:emp.name, dept:emp.dept, condition, by:currentUser?.email||"", note:"Nhập kho và bàn giao ngay"}); }
+    state.devices.push(d);
+    state.meta.deviceSeq++;
+    await persistMeta();
   }
-  await persistDevices(); closeModal(); toast("Đã lưu thành công"); setView(id?"device":"devices", id);
+  await persistDevices();
+  closeModal();
+  toast("Đã lưu thiết bị "+(id||nextDeviceId()));
+  setView(state.view==="device"?"device":"devices", id);
 }
 
-function openEmployeeForm(id){}
-function saveEmployee(id){}
+function openEmployeeForm(id){
+  const e = id ? state.employees.find(x=>x.id===id) : null;
+  const isEdit = !!e;
+  openModal(isEdit?`Sửa nhân viên ${id}`:"Thêm nhân viên mới", `
+    <div class="field"><label>Mã nhân viên</label><input value="${isEdit?e.id:nextEmployeeId()}" disabled></div>
+    <div class="field"><label class="req">Họ và tên</label><input id="eName" value="${esc(e?.name||"")}"></div>
+    <div class="field-row">
+      <div class="field"><label class="req">Bộ phận</label><select id="eDept">${DEPARTMENTS.map(dp=>`<option value="${dp}" ${e?.dept===dp?'selected':''}>${dp}</option>`).join("")}</select></div>
+      <div class="field"><label>Chức vụ</label><input id="ePosition" value="${esc(e?.position||"")}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Email</label><input type="email" id="eEmail" value="${esc(e?.email||"")}"></div>
+      <div class="field"><label>Số điện thoại</label><input id="ePhone" value="${esc(e?.phone||"")}"></div>
+    </div>
+    <div class="field"><label>Trạng thái</label><select id="eStatus">
+      <option ${!e||e.status==='Đang làm việc'?'selected':''}>Đang làm việc</option>
+      <option ${e?.status==='Đã nghỉ việc'?'selected':''}>Đã nghỉ việc</option>
+      <option ${e?.status==='Tạm nghỉ'?'selected':''}>Tạm nghỉ</option>
+    </select></div>
+  `, `<button class="btn btn-ghost" onclick="app.closeModal()">Huỷ</button><button class="btn btn-brand" onclick="app.saveEmployee(${isEdit?`'${id}'`:'null'})">Lưu nhân viên</button>`);
+}
+async function saveEmployee(id){
+  const name = document.getElementById("eName").value.trim();
+  if(!name){ toast("Vui lòng nhập họ tên", true); return; }
+  const dept = document.getElementById("eDept").value;
+  const position = document.getElementById("ePosition").value.trim();
+  const email = document.getElementById("eEmail").value.trim();
+  const phone = document.getElementById("ePhone").value.trim();
+  const status = document.getElementById("eStatus").value;
+  if(id){
+    const e = state.employees.find(x=>x.id===id);
+    Object.assign(e, {name,dept,position,email,phone,status});
+    state.devices.filter(d=>d.holderId===id).forEach(d=>{ d.holderName=name; d.dept=dept; });
+  } else {
+    state.employees.push({id:nextEmployeeId(), name, dept, position, email, phone, status});
+    state.meta.employeeSeq++;
+    await persistMeta();
+  }
+  await persistEmployees();
+  if(id) await persistDevices();
+  closeModal();
+  toast("Đã lưu nhân viên");
+  setView("employees");
+}
 
-window.app = { login, logout, setView, closeModal, openDeviceForm, saveDevice, openEmployeeForm, saveEmployee, createNewUserAccount };
+/* =========================================================
+   NGHIỆP VỤ — Bàn giao / Thu hồi / Điều chuyển / Bảo trì / Thanh lý / Sửa chữa
+   Có sẵn ô nhập GIÁ TRỊ TÀI SẢN & THỜI GIAN KHẤU HAO ngay trong form khi thiết bị chưa có dữ liệu này.
+========================================================= */
+function renderOps(){
+  document.getElementById("content").innerHTML = `
+    <div class="tiles">
+      <button class="tile" onclick="app.openOpForm('ban_giao')"><div class="ico">01 · Kho → Người dùng</div><h4>Bàn giao thiết bị</h4><p>Cấp máy từ kho IT cho nhân viên, kèm biên bản in.</p></button>
+      <button class="tile" onclick="app.openOpForm('thu_hoi')"><div class="ico">02 · Người dùng → Kho</div><h4>Thu hồi thiết bị</h4><p>Thu hồi máy về kho khi nghỉ việc, chuyển bộ phận, hỏng...</p></button>
+      <button class="tile" onclick="app.openOpForm('dieu_chuyen')"><div class="ico">03 · Người dùng → Người dùng</div><h4>Điều chuyển thiết bị</h4><p>Chuyển trực tiếp giữa 2 nhân viên, kèm biên bản in.</p></button>
+      <button class="tile" onclick="app.openOpForm('bao_tri_bat_dau')"><div class="ico">04 · Tạm ngừng sử dụng</div><h4>Gửi bảo trì / sửa chữa</h4><p>Đưa thiết bị đi sửa, chuyển trạng thái "Bảo trì".</p></button>
+      <button class="tile" onclick="app.openOpForm('bao_tri_xong')"><div class="ico">05 · Nhập lại kho</div><h4>Hoàn tất bảo trì</h4><p>Nhận thiết bị đã sửa xong, đưa về kho hoặc dùng lại.</p></button>
+      <button class="tile" onclick="app.openOpForm('thanh_ly')"><div class="ico">06 · Loại khỏi sử dụng</div><h4>Thanh lý thiết bị</h4><p>Kết thúc vòng đời thiết bị hư hỏng nặng hoặc lỗi thời.</p></button>
+      <button class="tile" onclick="app.openOpForm('sua_chua')"><div class="ico">07 · Ghi nhận chi phí</div><h4>Ghi nhận sửa chữa</h4><p>Lưu chi phí, đơn vị và mô tả mỗi lần sửa chữa.</p></button>
+    </div>`;
+}
+const OP_META = {
+  ban_giao:{title:"Biên bản bàn giao thiết bị", pickStatus:"Trong kho", resultStatus:"Đang sử dụng"},
+  thu_hoi:{title:"Biên bản thu hồi thiết bị", pickStatus:"Đang sử dụng", resultStatus:"Trong kho"},
+  dieu_chuyen:{title:"Biên bản điều chuyển thiết bị", pickStatus:"Đang sử dụng", resultStatus:"Đang sử dụng"},
+  bao_tri_bat_dau:{title:"Gửi bảo trì / sửa chữa", pickStatus:null, resultStatus:"Bảo trì"},
+  bao_tri_xong:{title:"Hoàn tất bảo trì — nhập lại kho", pickStatus:"Bảo trì", resultStatus:"Trong kho"},
+  thanh_ly:{title:"Thanh lý thiết bị", pickStatus:null, resultStatus:"Thanh lý"},
+  sua_chua:{title:"Ghi nhận sửa chữa / chi phí", pickStatus:null, resultStatus:null}
+};
+function eligibleDevices(op){
+  const meta = OP_META[op];
+  if(op==="thanh_ly" || op==="sua_chua") return state.devices.filter(d=>d.status!=="Thanh lý");
+  if(op==="bao_tri_bat_dau") return state.devices.filter(d=>d.status!=="Bảo trì" && d.status!=="Thanh lý");
+  return state.devices.filter(d=>d.status===meta.pickStatus);
+}
+function openOpForm(op, presetDeviceId){
+  const meta = OP_META[op];
+  const devices = eligibleDevices(op);
+  openModal(meta.title, `
+    <div class="field">
+      <label class="req">Thiết bị</label>
+      <select id="opDevice" onchange="app.previewOpDevice('${op}')">
+        <option value="">— chọn thiết bị —</option>
+        ${devices.map(d=>`<option value="${d.id}" ${presetDeviceId===d.id?'selected':''}>${d.id} · ${esc(d.type)} (${esc(d.brand)})</option>`).join("")}
+      </select>
+      ${devices.length===0 ? `<div class="hint">Không có thiết bị phù hợp cho nghiệp vụ này ngay lúc này.</div>` : ""}
+    </div>
+    <div id="opDevicePreview"></div>
+    <div id="opExtraFields"></div>
+    <div class="field"><label>Người thực hiện (IT)</label><input id="opBy" placeholder="Họ và tên nhân viên IT" value="${state.employees.find(e=>e.dept==='IT')?.name||currentUser?.email||''}"></div>
+    <div class="field"><label>Ghi chú</label><textarea id="opNote" placeholder="Ghi chú thêm (không bắt buộc)"></textarea></div>
+  `, `
+    <button class="btn btn-ghost" onclick="app.closeModal()">Huỷ</button>
+    <button class="btn btn-brand" onclick="app.submitOp('${op}')">${op==='sua_chua'?'Lưu ghi nhận':'Lưu & tạo biên bản'}</button>
+  `);
+  if(presetDeviceId) previewOpDevice(op);
+}
+function previewOpDevice(op){
+  const id = document.getElementById("opDevice").value;
+  const meta = OP_META[op];
+  const d = state.devices.find(x=>x.id===id);
+  const previewBox = document.getElementById("opDevicePreview");
+  const extraBox = document.getElementById("opExtraFields");
+  if(!d){ previewBox.innerHTML=""; extraBox.innerHTML=""; return; }
+
+  const dep = computeDepreciation(d);
+  previewBox.innerHTML = `
+    <div class="panel dashed" style="padding:12px 14px;margin:0 0 14px;">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:12.5px;">
+        <div><b>${esc(d.type)}</b> — ${esc(d.brand)}<div class="cell-sub">${esc(d.specs||"")}</div></div>
+        <div style="text-align:right;">
+          <div>Đang giữ: <b>${esc(d.holderName||"Kho")}</b></div>
+          <div class="cell-sub">Giá trị còn lại: ${dep.hasData?fmtVND(dep.bookValue):"chưa có dữ liệu"}</div>
+        </div>
+      </div>
+    </div>`;
+
+  let extra = "";
+  // Ô nhập/bổ sung GIÁ TRỊ TÀI SẢN & THỜI GIAN KHẤU HAO ngay trong form nghiệp vụ,
+  // hiển thị khi thiết bị CHƯA có giá mua (đúng yêu cầu: cho phép nhập ngay lúc bàn giao/thu hồi/điều chuyển).
+  const needsFinance = !dep.hasData && ["ban_giao","thu_hoi","dieu_chuyen","bao_tri_bat_dau"].includes(op);
+  if(needsFinance){
+    extra += `
+    <div class="panel dashed" style="padding:14px 14px 2px;">
+      <div class="hint" style="margin:0 0 10px;font-weight:600;color:var(--ink);">Thiết bị này chưa có giá trị tài sản — nhập luôn tại đây (không bắt buộc)</div>
+      <div class="field-row">
+        <div class="field"><label>Ngày mua</label><input type="date" id="opPurchaseDate" value="${d.purchaseDate||""}"></div>
+        <div class="field"><label>Giá trị tài sản (VNĐ)</label><input type="number" min="0" step="1000" id="opPurchasePrice" value="${d.purchasePrice||""}" placeholder="VD: 18500000"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Thời gian khấu hao (năm)</label><input type="number" min="0.5" step="0.5" id="opUsefulLifeYears" value="${d.usefulLifeYears||state.settings.usefulLifeYears}"></div>
+        <div class="field"><label>Bảo hành (tháng)</label><input type="number" min="0" id="opWarrantyMonths" value="${d.warrantyMonths||state.settings.warrantyMonths}"></div>
+      </div>
+    </div>`;
+  }
+  if(op==="ban_giao" || op==="dieu_chuyen"){
+    extra += `<div class="field"><label class="req">Giao cho (người nhận)</label>
+      <select id="opEmp">${state.employees.filter(e=>e.status!=="Đã nghỉ việc").map(emp=>`<option value="${emp.id}">${esc(emp.name)} (${esc(emp.dept)})</option>`).join("")}</select></div>`;
+  } else if(op==="thu_hoi" || op==="bao_tri_bat_dau" || op==="thanh_ly"){
+    extra += `<div class="field"><label class="req">Lý do</label><input id="opReason" placeholder="${op==='thu_hoi'?'Nghỉ việc, chuyển bộ phận, hỏng cần sửa...':op==='bao_tri_bat_dau'?'Mô tả lỗi cần sửa chữa...':'Hỏng nặng, lỗi thời, không còn giá trị sử dụng...'}"></div>`;
+  } else if(op==="sua_chua"){
+    extra += `
+      <div class="field-row">
+        <div class="field"><label>Đơn vị sửa chữa</label><input id="opRepairVendor" placeholder="Tên đơn vị/nhà cung cấp sửa chữa"></div>
+        <div class="field"><label class="req">Chi phí sửa chữa (VNĐ)</label><input type="number" min="0" step="1000" id="opRepairCost" placeholder="0"></div>
+      </div>
+      <div class="field"><label class="req">Mô tả lỗi / hạng mục sửa chữa</label><input id="opReason" placeholder="VD: Thay pin, sửa bản lề màn hình..."></div>`;
+  }
+  if(op!=="sua_chua"){
+    extra += `<div class="field"><label>Tình trạng tại thời điểm này</label>
+      <select id="opCondition">${CONDITIONS.map(c=>`<option value="${c}" ${d.condition===c?'selected':''}>${c}</option>`).join("")}</select></div>`;
+  } else {
+    extra += `<div class="field"><label>Tình trạng sau sửa chữa</label>
+      <select id="opCondition">${CONDITIONS.map(c=>`<option value="${c}" ${d.condition===c?'selected':''}>${c}</option>`).join("")}</select></div>`;
+  }
+  extraBox.innerHTML = extra;
+}
+async function submitOp(op){
+  const devId = document.getElementById("opDevice")?.value;
+  if(!devId){ toast("Vui lòng chọn thiết bị", true); return; }
+  const d = state.devices.find(x=>x.id===devId);
+  const by = document.getElementById("opBy").value.trim();
+  const note = document.getElementById("opNote").value.trim();
+  const condEl = document.getElementById("opCondition");
+  const condition = condEl ? condEl.value : d.condition;
+  const nowISO = new Date().toISOString();
+
+  // Áp dụng bổ sung giá trị tài sản/khấu hao nếu người dùng đã nhập ngay trong form nghiệp vụ
+  const opPurchaseDateEl = document.getElementById("opPurchaseDate");
+  if(opPurchaseDateEl){
+    const pDate = opPurchaseDateEl.value;
+    const pPrice = Number(document.getElementById("opPurchasePrice").value)||0;
+    const pLife = Number(document.getElementById("opUsefulLifeYears").value)||state.settings.usefulLifeYears;
+    const pWarranty = Number(document.getElementById("opWarrantyMonths").value)||state.settings.warrantyMonths;
+    if(pDate || pPrice>0){ d.purchaseDate=pDate||d.purchaseDate; d.purchasePrice=pPrice||d.purchasePrice; d.usefulLifeYears=pLife; d.warrantyMonths=pWarranty; }
+  }
+
+  const entry = {date:nowISO, by, note};
+  let printPayload = null;
+
+  if(op==="ban_giao" || op==="dieu_chuyen"){
+    const emp = state.employees.find(e=>e.id===document.getElementById("opEmp").value);
+    if(!emp){ toast("Vui lòng chọn người nhận", true); return; }
+    const fromName = d.holderName;
+    const fromDept = d.dept;
+    entry.type = op; entry.label = op==="ban_giao"?"Bàn giao cho nhân viên":"Điều chuyển thiết bị";
+    entry.to = emp.name; entry.dept = emp.dept; entry.condition = condition;
+    if(op==="dieu_chuyen"){ entry.from = fromName; }
+    d.status = "Đang sử dụng"; d.holderId = emp.id; d.holderName = emp.name; d.dept = emp.dept; d.condition = condition;
+    printPayload = {op, title:OP_META[op].title, device:d, from:{name:fromName||"Kho IT", dept:fromDept||"IT"}, to:{name:emp.name, dept:emp.dept}, by, note, date:nowISO};
+  } else if(op==="thu_hoi"){
+    const reason = document.getElementById("opReason").value.trim();
+    if(!reason){ toast("Vui lòng nhập lý do thu hồi", true); return; }
+    entry.type="thu_hoi"; entry.label="Thu hồi thiết bị"; entry.from=d.holderName; entry.reason=reason; entry.condition=condition;
+    printPayload = {op, title:OP_META[op].title, device:d, from:{name:d.holderName||"—", dept:d.dept||""}, to:{name:by||"Kho IT", dept:"IT"}, reason, by, note, date:nowISO};
+    d.status="Trong kho"; d.holderId=null; d.holderName=null; d.dept=""; d.condition=condition;
+  } else if(op==="bao_tri_bat_dau"){
+    const reason = document.getElementById("opReason").value.trim();
+    if(!reason){ toast("Vui lòng nhập lý do gửi bảo trì", true); return; }
+    entry.type="bao_tri_bat_dau"; entry.label="Gửi bảo trì / sửa chữa"; entry.reason=reason; entry.condition=condition;
+    d.status="Bảo trì"; d.condition=condition;
+  } else if(op==="bao_tri_xong"){
+    entry.type="bao_tri_xong"; entry.label="Hoàn tất bảo trì"; entry.condition=condition;
+    d.status="Trong kho"; d.condition=condition;
+  } else if(op==="thanh_ly"){
+    const reason = document.getElementById("opReason").value.trim();
+    if(!reason){ toast("Vui lòng nhập lý do thanh lý", true); return; }
+    entry.type="thanh_ly"; entry.label="Thanh lý thiết bị"; entry.reason=reason;
+    d.status="Thanh lý"; d.holderId=null; d.holderName=null; d.dept=""; d.condition=condition;
+  } else if(op==="sua_chua"){
+    const vendor = document.getElementById("opRepairVendor").value.trim();
+    const cost = Number(document.getElementById("opRepairCost").value)||0;
+    const description = document.getElementById("opReason").value.trim();
+    if(!description){ toast("Vui lòng nhập mô tả sửa chữa", true); return; }
+    entry.type="sua_chua"; entry.label="Ghi nhận sửa chữa"; entry.reason=description; entry.vendor=vendor; entry.cost=cost;
+    d.condition = condition;
+    d.repairs = d.repairs||[];
+    d.repairs.push({date:nowISO, vendor, description, cost, by});
+  }
+
+  d.history = d.history||[];
+  d.history.unshift(entry);
+  await persistDevices();
+  closeModal();
+  toast(op==="sua_chua" ? "Đã ghi nhận sửa chữa cho "+d.id : "Đã lưu nghiệp vụ cho "+d.id);
+  if(printPayload) renderPrintable(printPayload);
+  setView(state.view==="device"?"device":(state.view==="ops"?"ops":"devices"), state.view==="device"?d.id:undefined);
+}
+
+/* ---------- Biên bản in — đúng theo mẫu công ty Jeanic ---------- */
+function renderPrintable(p){
+  const d = p.device;
+  const terms = {
+    ban_giao:[
+      "Bên B có trách nhiệm bảo quản, giữ gìn thiết bị được bàn giao trong suốt quá trình sử dụng.",
+      "Trong trường hợp thiết bị bị hư hỏng, mất mát do lỗi của Bên B, Bên B có trách nhiệm bồi thường theo giá trị thực tế.",
+      "Biên bản này được lập thành 02 bản, mỗi bên giữ 01 bản và có giá trị pháp lý như nhau.",
+      "Bên B xác nhận đã nhận đủ thiết bị như danh sách trên và cam kết sử dụng đúng mục đích công việc."
+    ],
+    dieu_chuyen:[
+      "Bên nhận có trách nhiệm bảo quản, giữ gìn thiết bị được điều chuyển trong suốt quá trình sử dụng.",
+      "Trong trường hợp thiết bị bị hư hỏng, mất mát do lỗi của Bên nhận, Bên nhận có trách nhiệm bồi thường theo giá trị thực tế.",
+      "Biên bản này được lập thành 02 bản, mỗi bên giữ 01 bản và có giá trị pháp lý như nhau.",
+      "Bên nhận xác nhận đã nhận đủ thiết bị như danh sách trên và cam kết sử dụng đúng mục đích công việc."
+    ],
+    thu_hoi:[
+      "Bên trả thiết bị xác nhận đã bàn giao đầy đủ thiết bị như danh sách trên cho Bộ phận IT.",
+      "Bộ phận IT kiểm tra tình trạng thiết bị tại thời điểm thu hồi và ghi nhận vào cột Tình trạng.",
+      "Nếu thiết bị hư hỏng, mất mát do lỗi sử dụng, Bên trả thiết bị có trách nhiệm bồi thường theo giá trị thực tế.",
+      "Biên bản này được lập thành 02 bản, mỗi bên giữ 01 bản và có giá trị pháp lý như nhau."
+    ]
+  };
+  const t = terms[p.op] || terms.ban_giao;
+  const sideALabel = p.op==="thu_hoi" ? "BÊN TRẢ THIẾT BỊ" : "BÊN BÀN GIAO (BÊN A)";
+  const sideBLabel = p.op==="thu_hoi" ? "BÊN THU HỒI (IT)" : (p.op==="dieu_chuyen"?"BÊN NHẬN ĐIỀU CHUYỂN (BÊN B)":"BÊN NHẬN BÀN GIAO (BÊN B)");
+  document.getElementById("print-area").innerHTML = `
+    <div class="bb-page">
+      <div class="bb-head">
+        <div class="co">CÔNG TY JEANIC GARMENT SOLUTIONS</div>
+        <div class="dept">Bộ phận IT</div>
+        <h1>${esc(p.title).toUpperCase()}</h1>
+      </div>
+      <div class="bb-row"><div>Ngày lập biên bản: <b>${fmtDate(p.date)}</b></div><div>Người lập biên bản: <b>${esc(p.by||"—")}</b></div></div>
+      ${p.reason?`<div class="bb-row"><div>Lý do: <b>${esc(p.reason)}</b></div></div>`:""}
+      <div class="bb-block">
+        <h4>${sideALabel}</h4>
+        <div class="bb-row"><div>Họ và tên: <b>${esc(p.from.name)}</b></div><div>Bộ phận: <b>${esc(p.from.dept)}</b></div></div>
+      </div>
+      <div class="bb-block">
+        <h4>${sideBLabel}</h4>
+        <div class="bb-row"><div>Họ và tên: <b>${esc(p.to.name)}</b></div><div>Bộ phận: <b>${esc(p.to.dept)}</b></div></div>
+      </div>
+      <p>Cùng nhau lập biên bản với nội dung cụ thể như sau:</p>
+      <div class="bb-block">
+        <h4>Danh sách thiết bị</h4>
+        <table class="bb-table">
+          <tr><th>STT</th><th>Mã TB</th><th>Thương hiệu</th><th>Loại thiết bị</th><th>Thông số kỹ thuật</th><th>Tình trạng</th></tr>
+          <tr><td>1</td><td>${esc(d.id)}</td><td>${esc(d.brand)}</td><td>${esc(d.type)}</td><td>${esc(d.specs||"")}</td><td>${esc(d.condition)}</td></tr>
+        </table>
+      </div>
+      <div class="bb-block">
+        <h4>Điều khoản</h4>
+        <div class="bb-terms">${t.map((x,i)=>`${i+1}. ${esc(x)}<br>`).join("")}</div>
+      </div>
+      <div class="bb-sign">
+        <div><div class="cap">${sideALabel}</div><div class="sub">(Ký và ghi rõ họ tên)</div><div>${esc(p.from.name)}</div></div>
+        <div><div class="cap">${sideBLabel}</div><div class="sub">(Ký và ghi rõ họ tên)</div><div>${esc(p.to.name)}</div></div>
+      </div>
+    </div>`;
+  setTimeout(()=>{ try{ window.print(); }catch(e){} }, 250);
+}
+
+/* =========================================================
+   LỊCH SỬ TOÀN HỆ THỐNG
+========================================================= */
+function renderHistory(){
+  const all = [];
+  state.devices.forEach(d=>(d.history||[]).forEach(h=>all.push({...h, deviceId:d.id, deviceType:d.type, deviceBrand:d.brand})));
+  all.sort((a,b)=>new Date(b.date)-new Date(a.date));
+  document.getElementById("content").innerHTML = `
+    <div class="panel" style="padding:14px 0 4px;">
+      ${all.length===0 ? emptyState("Chưa có sự kiện nào","Lịch sử vòng đời thiết bị sẽ hiển thị ở đây.") : `
+      <table class="data">
+        <tr><th style="padding-left:22px;">Ngày</th><th>Thiết bị</th><th>Sự kiện</th><th>Chi tiết</th><th>Người thực hiện</th></tr>
+        ${all.map(h=>`
+          <tr class="rowclick" onclick="app.setView('device','${h.deviceId}')">
+            <td style="padding-left:22px;white-space:nowrap;font-family:var(--font-mono);font-size:12px;color:var(--ink-soft)">${fmtDateTime(h.date)}</td>
+            <td><b>${esc(h.deviceId)}</b><div class="cell-sub">${esc(h.deviceType)} · ${esc(h.deviceBrand)}</div></td>
+            <td>${esc(h.label)}</td>
+            <td class="cell-sub">${eventDetailLine(h)}</td>
+            <td class="cell-sub">${esc(h.by||"—")}</td>
+          </tr>`).join("")}
+      </table>`}
+    </div>`;
+}
+
+/* =========================================================
+   TÀI CHÍNH & KHẤU HAO
+========================================================= */
+function renderFinance(){
+  document.getElementById("topbarActions").innerHTML = `<button class="btn btn-brand" onclick="app.exportDevicesCSV()">⬇ Xuất CSV</button>`;
+  let totalInvested=0, totalBookValue=0, totalRepair=0;
+  const rows = state.devices.map(d=>{
+    const dep = computeDepreciation(d); const war = warrantyInfo(d); const rTotal = repairTotal(d);
+    totalRepair += rTotal;
+    if(dep.hasData){ totalInvested+=dep.price; totalBookValue+=dep.bookValue; }
+    return {d, dep, war, rTotal};
+  });
+  document.getElementById("content").innerHTML = `
+    <div class="grid-stats" style="grid-template-columns:repeat(4,1fr);">
+      <div class="stat-card accent-brand"><div class="n" style="font-size:18px;">${fmtVND(totalInvested)}</div><div class="l">Tổng nguyên giá</div></div>
+      <div class="stat-card accent-slate"><div class="n" style="font-size:18px;">${fmtVND(totalBookValue)}</div><div class="l">Tổng giá trị còn lại</div></div>
+      <div class="stat-card accent-amber"><div class="n" style="font-size:18px;">${fmtVND(totalInvested-totalBookValue)}</div><div class="l">Đã khấu hao luỹ kế</div></div>
+      <div class="stat-card accent-rust"><div class="n" style="font-size:18px;">${fmtVND(totalRepair)}</div><div class="l">Tổng chi phí sửa chữa</div></div>
+    </div>
+    <div class="panel" style="padding:14px 0 4px;">
+      ${rows.length===0 ? emptyState("Chưa có thiết bị nào","Thêm thiết bị và nhập giá mua để theo dõi khấu hao.") : `
+      <table class="data">
+        <tr><th style="padding-left:22px;">Mã TB</th><th>Loại</th><th>Ngày mua</th><th>Giá mua</th><th>Giá trị còn lại</th><th>% Khấu hao</th><th>Bảo hành</th><th>Chi phí sửa</th></tr>
+        ${rows.map(r=>`
+          <tr class="rowclick" onclick="app.setView('device','${r.d.id}')">
+            <td style="padding-left:22px;"><b>${esc(r.d.id)}</b></td>
+            <td><div class="cell-title">${esc(r.d.type)}</div><div class="cell-sub">${esc(r.d.brand)}</div></td>
+            <td>${fmtDate(r.d.purchaseDate)}</td><td>${fmtVND(r.d.purchasePrice)}</td>
+            <td>${r.dep.hasData?fmtVND(r.dep.bookValue):"—"}</td><td>${r.dep.hasData?r.dep.percentUsed+"%":"—"}</td>
+            <td>${!r.war.hasData?"—":r.war.expired?`<span class="pill pill-rust">Hết hạn</span>`:r.war.daysLeft<=state.settings.warrantyWarnDays?`<span class="pill pill-amber">${r.war.daysLeft} ngày</span>`:`<span class="pill pill-brand">Còn hạn</span>`}</td>
+            <td>${fmtVND(r.rTotal)}</td>
+          </tr>`).join("")}
+      </table>`}
+    </div>`;
+}
+function exportDevicesCSV(){
+  const header = ["Mã TB","Loại","Thương hiệu","Trạng thái","Người dùng","Bộ phận","Ngày mua","Giá mua","Nhà cung cấp","Số hoá đơn","Bảo hành (tháng)","Thời gian khấu hao (năm)","Giá trị còn lại","% Khấu hao","Tổng chi phí sửa chữa"];
+  const lines = [header.join(",")];
+  state.devices.forEach(d=>{
+    const dep = computeDepreciation(d);
+    const row = [d.id,d.type,d.brand,d.status,d.holderName||"",d.dept||"",d.purchaseDate||"",d.purchasePrice||0,d.vendor||"",d.invoiceNo||"",d.warrantyMonths||0,d.usefulLifeYears||state.settings.usefulLifeYears,dep.hasData?Math.round(dep.bookValue):"",dep.hasData?dep.percentUsed:"",repairTotal(d)]
+      .map(v=>{ const s=String(v??"").replace(/"/g,'""'); return /[",\n]/.test(s)?`"${s}"`:s; });
+    lines.push(row.join(","));
+  });
+  downloadFile("\uFEFF"+lines.join("\n"), `jeanic-thietbi-taichinh-${todayISO()}.csv`, "text/csv;charset=utf-8;");
+  toast("Đã xuất file CSV");
+}
+
+/* =========================================================
+   NHẬP DỮ LIỆU TỪ EXCEL / CSV
+   Đọc đúng cấu trúc "DS Thiết bị" / "DS Nhân viên" mà IT đang dùng
+   (tự dò dòng tiêu đề, bỏ qua các dòng tiêu đề công ty / dòng mẫu trống phía trên)
+========================================================= */
+const DEVICE_FIELD_MAP = {
+  id:"Mã TB", type:"Loại thiết bị", brand:"Thương hiệu", specs:"Thông số kỹ thuật", condition:"Tình trạng",
+  status:"Trạng thái sử dụng", holderName:"Người đang sử dụng", dept:"Bộ phận", importDate:"Ngày nhập kho", note:"Ghi chú",
+  purchaseDate:"Ngày mua", purchasePrice:"Giá mua", vendor:"Nhà cung cấp", invoiceNo:"Số hoá đơn",
+  warrantyMonths:"Bảo hành (tháng)", usefulLifeYears:"Thời gian khấu hao (năm)", salvageValue:"Giá trị thanh lý"
+};
+const EMPLOYEE_FIELD_MAP = { id:"Mã NV", name:"Họ và tên", dept:"Bộ phận", position:"Chức vụ", email:"Email", phone:"Số điện thoại", status:"Trạng thái" };
+
+let importState = { workbook:null, sheetNames:[], deviceSheet:"", employeeSheet:"", devicePreview:null, employeePreview:null };
+
+function aoaFindRows(aoa, headerMatchValue, fieldMap){
+  let headerRowIdx = -1;
+  for(let i=0;i<aoa.length;i++){
+    if((aoa[i]||[]).some(c=>String(c===undefined?"":c).trim()===headerMatchValue)){ headerRowIdx=i; break; }
+  }
+  if(headerRowIdx===-1) return {rows:[], headerFound:false};
+  const headerRow = (aoa[headerRowIdx]||[]).map(c=>String(c===undefined?"":c).trim());
+  const colIdx = {};
+  Object.entries(fieldMap).forEach(([outKey, label])=>{ colIdx[outKey] = headerRow.findIndex(h=>h===label); });
+  const rows = [];
+  for(let r=headerRowIdx+1;r<aoa.length;r++){
+    const raw = aoa[r]; if(!raw) continue;
+    const obj = {}; let any=false;
+    Object.entries(colIdx).forEach(([outKey, idx])=>{
+      const v = idx>=0 && raw[idx]!==undefined ? String(raw[idx]).trim() : "";
+      obj[outKey]=v; if(v) any=true;
+    });
+    if(!any) continue;
+    rows.push(obj);
+  }
+  return {rows, headerFound:true};
+}
+function classifyDeviceRow(row){
+  const onlyId = row.id && !row.type && !row.brand && !row.specs && !row.condition && !row.status && !row.holderName && !row.dept && !row.importDate && !row.note && !row.purchaseDate && !row.purchasePrice;
+  if(!row.id) return "error";
+  if(onlyId) return "placeholder";
+  if(!row.type) return "error";
+  return state.devices.some(d=>d.id===row.id) ? "update" : "new";
+}
+function classifyEmployeeRow(row){
+  const onlyId = row.id && !row.name && !row.dept && !row.position && !row.email && !row.phone && !row.status;
+  if(!row.id) return "error";
+  if(onlyId) return "placeholder";
+  if(!row.name) return "error";
+  return state.employees.some(e=>e.id===row.id) ? "update" : "new";
+}
+
+function renderImport(){
+  document.getElementById("content").innerHTML = `
+    <div class="panel">
+      <h3>1. Tải file mẫu (khuyến nghị cho lần nhập đầu tiên)</h3>
+      <p style="font-size:12.5px;color:var(--ink-soft);">File mẫu có 2 sheet: <b>DS Thiết bị</b> và <b>DS Nhân viên</b>, đúng cột IT đang dùng — điền thêm cột giá mua/khấu hao nếu muốn.</p>
+      <button class="btn" onclick="app.downloadImportTemplate()">⬇ Tải file mẫu (.xlsx)</button>
+    </div>
+    <div class="panel">
+      <h3>2. Chọn file để nhập</h3>
+      <div class="upload-drop">
+        <div>Chọn file Excel (.xlsx/.xls) hoặc CSV — có thể là chính file quản lý bàn giao hiện tại của bạn.</div>
+        <input type="file" id="importFile" accept=".xlsx,.xls,.csv" onchange="app.handleImportFile(this.files[0])">
+      </div>
+      <div id="importSheetPick"></div>
+    </div>
+    <div id="importPreviewArea"></div>
+  `;
+}
+function downloadImportTemplate(){
+  const wsDev = XLSX.utils.aoa_to_sheet([
+    Object.values(DEVICE_FIELD_MAP),
+    ["TB001","Laptop","Dell","CPU i5, RAM 16GB, SSD 512GB","Tốt","Trong kho","","","2026-01-10","",
+     "2026-01-05","18500000","Thế Giới Di Động","HD-0001","24","3","1000000"]
+  ]);
+  const wsEmp = XLSX.utils.aoa_to_sheet([
+    Object.values(EMPLOYEE_FIELD_MAP),
+    ["NV001","Nguyễn Văn A","IT","Nhân viên IT","a.nguyen@jeanicgarment.com","0900000000","Đang làm việc"]
+  ]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, wsDev, "DS Thiết bị");
+  XLSX.utils.book_append_sheet(wb, wsEmp, "DS Nhân viên");
+  const out = XLSX.write(wb, {bookType:"xlsx", type:"array"});
+  downloadFile(new Blob([out], {type:"application/octet-stream"}), "jeanic-file-mau-import.xlsx");
+  toast("Đã tải file mẫu");
+}
+function handleImportFile(file){
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, {type:"array", cellDates:true});
+      importState.workbook = wb;
+      importState.sheetNames = wb.SheetNames;
+      const guessDev = wb.SheetNames.find(n=>/thiết bị|thiet bi|device/i.test(n)) || "";
+      const guessEmp = wb.SheetNames.find(n=>/nhân viên|nhan vien|employee/i.test(n)) || "";
+      importState.deviceSheet = guessDev; importState.employeeSheet = guessEmp;
+      document.getElementById("importSheetPick").innerHTML = `
+        <div class="field-row" style="margin-top:14px;">
+          <div class="field"><label>Sheet chứa Danh sách Thiết bị</label>
+            <select id="pickDevSheet" onchange="app.setImportSheet('device', this.value)">
+              <option value="">— không nhập —</option>
+              ${wb.SheetNames.map(n=>`<option value="${esc(n)}" ${guessDev===n?'selected':''}>${esc(n)}</option>`).join("")}
+            </select></div>
+          <div class="field"><label>Sheet chứa Danh sách Nhân viên</label>
+            <select id="pickEmpSheet" onchange="app.setImportSheet('employee', this.value)">
+              <option value="">— không nhập —</option>
+              ${wb.SheetNames.map(n=>`<option value="${esc(n)}" ${guessEmp===n?'selected':''}>${esc(n)}</option>`).join("")}
+            </select></div>
+        </div>
+        <button class="btn btn-brand" onclick="app.buildImportPreview()">Xem trước dữ liệu</button>
+      `;
+      document.getElementById("importPreviewArea").innerHTML = "";
+    }catch(err){
+      console.error(err);
+      toast("Không đọc được file. Kiểm tra định dạng file.", true);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+function setImportSheet(kind, val){ if(kind==="device") importState.deviceSheet=val; else importState.employeeSheet=val; }
+
+function buildImportPreview(){
+  const wb = importState.workbook;
+  if(!wb){ toast("Vui lòng chọn file trước", true); return; }
+  let devResult = null, empResult = null;
+  if(importState.deviceSheet){
+    const ws = wb.Sheets[importState.deviceSheet];
+    const aoa = XLSX.utils.sheet_to_json(ws, {header:1, raw:false, dateNF:"yyyy-mm-dd", defval:""});
+    devResult = aoaFindRows(aoa, "Mã TB", DEVICE_FIELD_MAP);
+  }
+  if(importState.employeeSheet){
+    const ws = wb.Sheets[importState.employeeSheet];
+    const aoa = XLSX.utils.sheet_to_json(ws, {header:1, raw:false, dateNF:"yyyy-mm-dd", defval:""});
+    empResult = aoaFindRows(aoa, "Mã NV", EMPLOYEE_FIELD_MAP);
+  }
+  importState.devicePreview = devResult;
+  importState.employeePreview = empResult;
+  renderImportPreview();
+}
+function summarize(rows, classifyFn){
+  const s = {new:0, update:0, error:0, placeholder:0};
+  rows.forEach(r=>s[classifyFn(r)]++);
+  return s;
+}
+function renderImportPreview(){
+  const dr = importState.devicePreview, er = importState.employeePreview;
+  let html = "";
+  if(importState.deviceSheet){
+    if(!dr || !dr.headerFound){
+      html += `<div class="panel"><h3>Danh sách Thiết bị</h3>${emptyState("Không tìm thấy dòng tiêu đề 'Mã TB'","Kiểm tra lại sheet đã chọn có đúng cấu trúc cột 'Mã TB' hay không.")}</div>`;
+    } else {
+      const s = summarize(dr.rows, classifyDeviceRow);
+      html += `<div class="panel">
+        <div class="panel-head"><h3>Danh sách Thiết bị</h3>
+          <span class="pill pill-brand">${s.new} thêm mới</span> <span class="pill pill-amber">${s.update} cập nhật</span> <span class="pill pill-rust">${s.error} lỗi</span> <span class="pill pill-slate">${s.placeholder} dòng trống bỏ qua</span>
+        </div>
+        <table class="data"><tr><th>Mã TB</th><th>Loại / Thương hiệu</th><th>Người dùng</th><th>Giá mua</th><th>Trạng thái nhập</th></tr>
+        ${dr.rows.filter(r=>classifyDeviceRow(r)!=="placeholder").map(r=>{
+          const c = classifyDeviceRow(r);
+          const rowClass = c==="error"?"row-error":c==="update"?"row-update":"";
+          const label = c==="error"?"⚠ Thiếu Loại thiết bị":c==="update"?"Sẽ cập nhật":"Sẽ thêm mới";
+          return `<tr class="${rowClass}"><td><b>${esc(r.id)}</b></td><td>${esc(r.type||"—")} · ${esc(r.brand||"")}</td><td>${esc(r.holderName||"—")}</td><td>${r.purchasePrice?fmtVND(r.purchasePrice):"—"}</td><td>${label}</td></tr>`;
+        }).join("")}
+        </table>
+      </div>`;
+    }
+  }
+  if(importState.employeeSheet){
+    if(!er || !er.headerFound){
+      html += `<div class="panel"><h3>Danh sách Nhân viên</h3>${emptyState("Không tìm thấy dòng tiêu đề 'Mã NV'","Kiểm tra lại sheet đã chọn có đúng cấu trúc cột 'Mã NV' hay không.")}</div>`;
+    } else {
+      const s = summarize(er.rows, classifyEmployeeRow);
+      html += `<div class="panel">
+        <div class="panel-head"><h3>Danh sách Nhân viên</h3>
+          <span class="pill pill-brand">${s.new} thêm mới</span> <span class="pill pill-amber">${s.update} cập nhật</span> <span class="pill pill-rust">${s.error} lỗi</span> <span class="pill pill-slate">${s.placeholder} dòng trống bỏ qua</span>
+        </div>
+        <table class="data"><tr><th>Mã NV</th><th>Họ và tên</th><th>Bộ phận</th><th>Email</th><th>Trạng thái nhập</th></tr>
+        ${er.rows.filter(r=>classifyEmployeeRow(r)!=="placeholder").map(r=>{
+          const c = classifyEmployeeRow(r);
+          const rowClass = c==="error"?"row-error":c==="update"?"row-update":"";
+          const label = c==="error"?"⚠ Thiếu Họ và tên":c==="update"?"Sẽ cập nhật":"Sẽ thêm mới";
+          return `<tr class="${rowClass}"><td><b>${esc(r.id)}</b></td><td>${esc(r.name||"—")}</td><td>${esc(r.dept||"")}</td><td>${esc(r.email||"")}</td><td>${label}</td></tr>`;
+        }).join("")}
+        </table>
+      </div>`;
+    }
+  }
+  if(!importState.deviceSheet && !importState.employeeSheet){
+    html = emptyState("Chưa chọn sheet nào","Chọn ít nhất 1 sheet (Thiết bị hoặc Nhân viên) để xem trước.");
+  } else {
+    html += `<button class="btn btn-brand" onclick="app.commitImport()">✓ Xác nhận nhập dữ liệu</button>`;
+  }
+  document.getElementById("importPreviewArea").innerHTML = html;
+}
+function parseNum(v){ const n = Number(String(v).replace(/[^\d.-]/g,"")); return isNaN(n)?0:n; }
+async function commitImport(){
+  let addedDev=0, updDev=0, addedEmp=0, updEmp=0;
+  if(importState.devicePreview && importState.devicePreview.headerFound){
+    importState.devicePreview.rows.forEach(row=>{
+      const c = classifyDeviceRow(row);
+      if(c==="error" || c==="placeholder") return;
+      if(c==="new"){
+        const emp = row.holderName ? state.employees.find(e=>e.name.trim().toLowerCase()===row.holderName.trim().toLowerCase()) : null;
+        state.devices.push({
+          id:row.id, type:row.type, brand:row.brand||"", specs:row.specs||"", condition:row.condition||"Tốt",
+          status: row.status || (emp?"Đang sử dụng":"Trong kho"),
+          holderId: emp?emp.id:null, holderName: row.holderName||(emp?emp.name:null), dept: row.dept||(emp?emp.dept:""),
+          importDate: row.importDate||todayISO(), note: row.note||"",
+          purchaseDate: row.purchaseDate||"", purchasePrice: parseNum(row.purchasePrice), vendor: row.vendor||"", invoiceNo: row.invoiceNo||"",
+          warrantyMonths: row.warrantyMonths?parseNum(row.warrantyMonths):state.settings.warrantyMonths,
+          usefulLifeYears: row.usefulLifeYears?parseNum(row.usefulLifeYears):state.settings.usefulLifeYears,
+          salvageValue: parseNum(row.salvageValue),
+          repairs:[], history:[{date:new Date().toISOString(), type:"ban_giao", label:"Nhập từ Excel", to:row.holderName||"", dept:row.dept||"", condition:row.condition||"Tốt", by:currentUser?.email||"", note:"Nhập hàng loạt từ file Excel/CSV"}]
+        });
+        addedDev++;
+        const num = parseInt(String(row.id).replace(/\D/g,""));
+        if(!isNaN(num) && num>=state.meta.deviceSeq) state.meta.deviceSeq = num+1;
+      } else if(c==="update"){
+        const d = state.devices.find(x=>x.id===row.id);
+        if(row.type) d.type=row.type; if(row.brand) d.brand=row.brand; if(row.specs) d.specs=row.specs;
+        if(row.condition) d.condition=row.condition; if(row.status) d.status=row.status;
+        if(row.holderName) d.holderName=row.holderName; if(row.dept) d.dept=row.dept;
+        if(row.importDate) d.importDate=row.importDate; if(row.note) d.note=row.note;
+        if(row.purchaseDate) d.purchaseDate=row.purchaseDate;
+        if(row.purchasePrice) d.purchasePrice=parseNum(row.purchasePrice);
+        if(row.vendor) d.vendor=row.vendor; if(row.invoiceNo) d.invoiceNo=row.invoiceNo;
+        if(row.warrantyMonths) d.warrantyMonths=parseNum(row.warrantyMonths);
+        if(row.usefulLifeYears) d.usefulLifeYears=parseNum(row.usefulLifeYears);
+        if(row.salvageValue) d.salvageValue=parseNum(row.salvageValue);
+        updDev++;
+      }
+    });
+  }
+  if(importState.employeePreview && importState.employeePreview.headerFound){
+    importState.employeePreview.rows.forEach(row=>{
+      const c = classifyEmployeeRow(row);
+      if(c==="error" || c==="placeholder") return;
+      if(c==="new"){
+        state.employees.push({id:row.id, name:row.name, dept:row.dept||"", position:row.position||"", email:row.email||"", phone:row.phone||"", status:row.status||"Đang làm việc"});
+        addedEmp++;
+        const num = parseInt(String(row.id).replace(/\D/g,""));
+        if(!isNaN(num) && num>=state.meta.employeeSeq) state.meta.employeeSeq = num+1;
+      } else if(c==="update"){
+        const e = state.employees.find(x=>x.id===row.id);
+        if(row.name) e.name=row.name; if(row.dept) e.dept=row.dept; if(row.position) e.position=row.position;
+        if(row.email) e.email=row.email; if(row.phone) e.phone=row.phone; if(row.status) e.status=row.status;
+        updEmp++;
+      }
+    });
+  }
+  await persistAll();
+  toast(`Đã nhập: ${addedDev} thiết bị mới, ${updDev} cập nhật · ${addedEmp} nhân viên mới, ${updEmp} cập nhật`);
+  setView("devices");
+}
+
+/* =========================================================
+   TÀI KHOẢN NHÂN VIÊN — cấp tài khoản đăng nhập để họ tự thao tác thay vì admin nhập tay
+========================================================= */
+async function renderAccounts(){
+  document.getElementById("content").innerHTML = `
+    <div class="panel">
+      <h3>Cấp tài khoản đăng nhập mới</h3>
+      ${Store.mode!=="cloud" ? `<div class="hint">Đang chạy ở chế độ cục bộ (không có máy chủ) — không thể tạo tài khoản đăng nhập thật. Tính năng này chỉ hoạt động khi kết nối được Firebase.</div>` : `
+      <div class="field"><label>Liên kết với nhân viên (không bắt buộc)</label>
+        <select id="accEmpLink"><option value="">— không liên kết —</option>${state.employees.map(e=>`<option value="${e.id}">${esc(e.name)} (${esc(e.dept)})</option>`).join("")}</select>
+      </div>
+      <div class="field-row">
+        <div class="field"><label class="req">Email đăng nhập</label><input type="email" id="accEmail" placeholder="ten@jeanicgarment.com"></div>
+        <div class="field"><label class="req">Mật khẩu (≥ 6 ký tự)</label><input type="password" id="accPass" placeholder="••••••••"></div>
+      </div>
+      <div class="field"><label>Vai trò</label><select id="accRole"><option value="user">Người dùng (chỉ xem &amp; thao tác nghiệp vụ)</option><option value="admin">Quản trị (toàn quyền, gồm cài đặt &amp; tài khoản)</option></select></div>
+      <button class="btn btn-brand" onclick="app.createAccount()">Tạo tài khoản</button>
+      <div class="hint">Tài khoản mới có thể đăng nhập ngay bằng email/mật khẩu vừa tạo. Việc tạo tài khoản này không ảnh hưởng tới phiên đăng nhập hiện tại của bạn.</div>`}
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Danh sách tài khoản</h3><button class="btn btn-sm" onclick="app.renderAccounts()">↻ Tải lại</button></div>
+      <div id="accountsList">${Store.mode==="cloud" ? emptyState("Đang tải…","") : emptyState("Không khả dụng ở chế độ cục bộ","Kết nối Firebase để quản lý tài khoản nhân viên.")}</div>
+    </div>
+  `;
+  if(Store.mode==="cloud") await loadAccountsList();
+}
+async function loadAccountsList(){
+  try{
+    const snap = await db.collection("jeanic_accounts").orderBy("createdAt","desc").get();
+    const list = []; snap.forEach(doc=>list.push({uid:doc.id, ...doc.data()}));
+    state.accounts = list;
+    document.getElementById("accountsList").innerHTML = list.length===0 ? emptyState("Chưa có tài khoản nào","Tạo tài khoản đầu tiên ở trên.") : `
+      <table class="data">
+        <tr><th style="padding-left:22px;">Email</th><th>Vai trò</th><th>Liên kết NV</th><th>Trạng thái</th><th>Ngày tạo</th><th></th></tr>
+        ${list.map(a=>{
+          const emp = state.employees.find(e=>e.id===a.employeeId);
+          return `<tr>
+            <td style="padding-left:22px;">${esc(a.email)}</td>
+            <td><span class="pill ${a.role==='admin'?'pill-brand':'pill-slate'}">${a.role==='admin'?'Quản trị':'Người dùng'}</span></td>
+            <td>${emp?esc(emp.name):"—"}</td>
+            <td><span class="pill ${a.active===false?'pill-rust':'pill-brand'}">${a.active===false?'Đã vô hiệu hoá':'Đang hoạt động'}</span></td>
+            <td class="cell-sub">${fmtDate(a.createdAt)}</td>
+            <td style="white-space:nowrap;">
+              <button class="btn btn-sm" onclick="app.toggleAccountRole('${a.uid}','${a.role}')">Đổi vai trò</button>
+              <button class="btn btn-sm ${a.active===false?'':'btn-danger'}" onclick="app.toggleAccountActive('${a.uid}', ${a.active===false})">${a.active===false?'Kích hoạt lại':'Vô hiệu hoá'}</button>
+              <button class="btn btn-sm" onclick="app.sendReset('${a.email}')">Đặt lại MK</button>
+            </td>
+          </tr>`;
+        }).join("")}
+      </table>
+      <div class="hint" style="margin-top:10px;">Lưu ý: "Vô hiệu hoá" chặn quyền truy cập trong ứng dụng này (kiểm tra khi đăng nhập); do giới hạn của Firebase phía trình duyệt, tài khoản vẫn tồn tại trong hệ thống xác thực — nếu cần khoá triệt để, hãy xoá thủ công trong Firebase Console → Authentication.</div>`;
+  }catch(e){
+    console.error(e);
+    document.getElementById("accountsList").innerHTML = emptyState("Không tải được danh sách tài khoản", e.message||"");
+  }
+}
+async function createAccount(){
+  const email = document.getElementById("accEmail").value.trim();
+  const pass = document.getElementById("accPass").value;
+  const role = document.getElementById("accRole").value;
+  const employeeId = document.getElementById("accEmpLink").value || null;
+  if(!email || pass.length<6){ toast("Vui lòng nhập email hợp lệ và mật khẩu ≥ 6 ký tự", true); return; }
+  try{
+    const cred = await fbSecondaryApp.auth().createUserWithEmailAndPassword(email, pass);
+    const uid = cred.user.uid;
+    await fbSecondaryApp.auth().signOut();
+    await db.collection("jeanic_accounts").doc(uid).set({
+      email, role, employeeId, active:true, createdAt:new Date().toISOString(), createdBy: currentUser?.email||""
+    });
+    toast("Đã tạo tài khoản cho "+email);
+    renderAccounts();
+  }catch(e){
+    toast("Lỗi tạo tài khoản: "+(e.message||e), true);
+  }
+}
+async function toggleAccountRole(uid, currentRoleVal){
+  const newRole = currentRoleVal==="admin" ? "user" : "admin";
+  try{ await db.collection("jeanic_accounts").doc(uid).update({role:newRole}); toast("Đã đổi vai trò"); loadAccountsList(); }
+  catch(e){ toast("Lỗi: "+(e.message||e), true); }
+}
+async function toggleAccountActive(uid, makeActive){
+  try{ await db.collection("jeanic_accounts").doc(uid).update({active:makeActive}); toast(makeActive?"Đã kích hoạt lại":"Đã vô hiệu hoá tài khoản"); loadAccountsList(); }
+  catch(e){ toast("Lỗi: "+(e.message||e), true); }
+}
+async function sendReset(email){
+  try{ await auth.sendPasswordResetEmail(email); toast("Đã gửi email đặt lại mật khẩu tới "+email); }
+  catch(e){ toast("Lỗi: "+(e.message||e), true); }
+}
+
+/* =========================================================
+   CÀI ĐẶT
+========================================================= */
+function renderSettings(){
+  const s = state.settings;
+  document.getElementById("content").innerHTML = `
+    <div class="panel">
+      <h3>Cấu hình mặc định khấu hao &amp; cảnh báo</h3>
+      <div class="field-row">
+        <div class="field"><label>Thời gian khấu hao mặc định (năm)</label><input type="number" min="0.5" step="0.5" id="sUsefulLife" value="${s.usefulLifeYears}"></div>
+        <div class="field"><label>Bảo hành mặc định (tháng)</label><input type="number" min="0" id="sWarranty" value="${s.warrantyMonths}"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Cảnh báo khi giá trị còn lại ≤ (%)</label><input type="number" min="0" max="100" id="sDepWarn" value="${s.depreciationWarnPercent}"></div>
+        <div class="field"><label>Cảnh báo khi còn ≤ (ngày) hết bảo hành</label><input type="number" min="0" id="sWarWarn" value="${s.warrantyWarnDays}"></div>
+      </div>
+      <div class="field"><label>Cảnh báo khi tổng chi phí sửa chữa ≥ (%) nguyên giá</label><input type="number" min="0" id="sRepairWarn" value="${s.repairCostWarnPercent}"></div>
+      <button class="btn btn-brand" onclick="app.saveSettings()">Lưu cấu hình</button>
+    </div>
+    <div class="panel">
+      <h3>Sao lưu &amp; phục hồi dữ liệu</h3>
+      <p style="font-size:12.5px;color:var(--ink-soft);">Xuất toàn bộ dữ liệu ra file JSON để lưu trữ hoặc chuyển sang nơi khác. Khi phục hồi, dữ liệu hiện tại sẽ bị ghi đè.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn" onclick="app.exportBackup()">⬇ Xuất file sao lưu (JSON)</button>
+        <label class="btn" style="cursor:pointer;">⬆ Phục hồi từ file backup<input type="file" accept="application/json" style="display:none;" onchange="app.importBackup(this.files[0])"></label>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>Thông tin hệ thống</h3>
+      <div class="kv"><b>Chế độ lưu trữ</b><span>${Store.mode==="cloud"?"Firebase (dùng chung, nhiều người cùng thao tác)":"Cục bộ theo trình duyệt (localStorage)"}</span></div>
+      ${Store.mode==="local" ? `<div class="hint">Không kết nối được Firebase — kiểm tra mạng hoặc cấu hình dự án. Dữ liệu hiện chỉ lưu trên trình duyệt này.</div>` : ""}
+    </div>
+  `;
+}
+async function saveSettings(){
+  state.settings.usefulLifeYears = Number(document.getElementById("sUsefulLife").value) || DEFAULT_SETTINGS.usefulLifeYears;
+  state.settings.warrantyMonths = Number(document.getElementById("sWarranty").value) || 0;
+  state.settings.depreciationWarnPercent = Number(document.getElementById("sDepWarn").value) || 0;
+  state.settings.warrantyWarnDays = Number(document.getElementById("sWarWarn").value) || 0;
+  state.settings.repairCostWarnPercent = Number(document.getElementById("sRepairWarn").value) || 0;
+  await persistSettings();
+  toast("Đã lưu cấu hình");
+}
+function exportBackup(){
+  const payload = {exportedAt:new Date().toISOString(), devices:state.devices, employees:state.employees, meta:state.meta, settings:state.settings};
+  downloadFile(JSON.stringify(payload,null,2), `jeanic-backup-${todayISO()}.json`, "application/json");
+  toast("Đã xuất file sao lưu");
+}
+function importBackup(file){
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async ()=>{
+    try{
+      const data = JSON.parse(reader.result);
+      if(!Array.isArray(data.devices) || !Array.isArray(data.employees)){ toast("File backup không hợp lệ", true); return; }
+      if(!confirm("Phục hồi sẽ GHI ĐÈ toàn bộ dữ liệu hiện tại. Bạn chắc chắn muốn tiếp tục?")) return;
+      state.devices = data.devices; state.employees = data.employees;
+      state.meta = data.meta || state.meta; state.settings = {...DEFAULT_SETTINGS, ...(data.settings||{})};
+      await persistAll();
+      toast("Đã phục hồi dữ liệu thành công");
+      setView("dashboard");
+    }catch(err){ console.error(err); toast("Không đọc được file backup", true); }
+  };
+  reader.readAsText(file);
+}
+
+/* =========================================================
+   ĐĂNG KÝ API CHO GIAO DIỆN (onclick="app....")
+========================================================= */
+window.app = {
+  login, logout, enterLocalMode, setView, closeModal,
+  openDeviceForm, saveDevice, openEmployeeForm, saveEmployee,
+  setDeviceFilter, setEmployeeQuery,
+  openOpForm, previewOpDevice, submitOp,
+  exportDevicesCSV,
+  downloadImportTemplate, handleImportFile, setImportSheet, buildImportPreview, commitImport,
+  renderAccounts, createAccount, toggleAccountRole, toggleAccountActive, sendReset,
+  saveSettings, exportBackup, importBackup
+};
+
 </script>
 </body>
 </html>
