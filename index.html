@@ -616,6 +616,7 @@ const NAV = [
   ]},
   {grp:"Nghiệp vụ", items:[{id:"ops", label:"Bàn giao / Thu hồi / Điều chuyển", ico:"⇄"}]},
   {grp:"Theo dõi", items:[
+    {id:"documents", label:"Biên bản đã lập", ico:"🖨"},
     {id:"history", label:"Lịch sử toàn hệ thống", ico:"≡"},
     {id:"finance", label:"Tài chính & Khấu hao", ico:"₫"}
   ]},
@@ -637,6 +638,7 @@ const PAGE_META = {
   devices:["Thiết bị","Sổ quản lý tài sản CNTT — vòng đời từng thiết bị"],
   employees:["Nhân viên","Danh sách nhân viên dùng cho bàn giao / thu hồi / điều chuyển"],
   ops:["Nghiệp vụ","Lập biên bản bàn giao, thu hồi, điều chuyển, bảo trì, thanh lý, sửa chữa"],
+  documents:["Biên bản đã lập","Toàn bộ biên bản bàn giao, thu hồi, điều chuyển đã in — xem và in lại bất cứ lúc nào"],
   history:["Lịch sử toàn hệ thống","Toàn bộ sự kiện vòng đời của mọi thiết bị"],
   finance:["Tài chính & Khấu hao","Giá trị đầu tư, khấu hao và chi phí sửa chữa toàn bộ thiết bị"],
   import:["Nhập từ Excel/CSV","Nhập dữ liệu hàng loạt từ file Excel (.xlsx/.xls) hoặc CSV"],
@@ -658,6 +660,7 @@ function setView(view, arg){
   else if(view==="device") renderDeviceDetail(arg);
   else if(view==="employees") renderEmployees();
   else if(view==="ops") renderOps();
+  else if(view==="documents") renderDocuments();
   else if(view==="history") renderHistory();
   else if(view==="finance") renderFinance();
   else if(view==="import") renderImport();
@@ -805,18 +808,35 @@ function openLabelPrintOptions(ids){
   openModal("In tem thiết bị ("+ids.length+")", `
     <div class="field">
       <label>Khổ giấy / máy in</label>
-      <select id="lblPrintMode">
+      <select id="lblPrintMode" onchange="app.toggleCustomLabelSize()">
         <option value="a4">Giấy A4 thường — nhiều tem/trang, có mã vạch + QR</option>
         <option value="th50x30">Máy in nhiệt — tem 50 x 30 mm</option>
         <option value="th40x30">Máy in nhiệt — tem 40 x 30 mm</option>
         <option value="th30x20">Máy in nhiệt — tem 30 x 20 mm (chỉ mã vạch)</option>
+        <option value="custom">Máy in nhiệt — kích thước tuỳ chỉnh…</option>
       </select>
     </div>
-    <div class="hint">Chọn đúng khổ tem đang lắp trong máy in nhiệt (Xprinter, Zebra…) để không bị lệch tem. Với tem 30×20mm, tem chỉ hiện mã vạch do diện tích quá nhỏ cho QR.</div>
+    <div id="customLabelSize" style="display:none;">
+      <div class="field-row">
+        <div class="field"><label>Chiều rộng (mm)</label><input type="number" min="15" max="120" step="1" id="lblCustomW" value="50"></div>
+        <div class="field"><label>Chiều cao (mm)</label><input type="number" min="10" max="120" step="1" id="lblCustomH" value="30"></div>
+      </div>
+      <div class="hint">Nhập đúng kích thước tem thật đang lắp trong máy in. QR và mã vạch sẽ tự động co giãn theo kích thước bạn nhập. Tem có diện tích quá nhỏ (dưới khoảng 40×25mm) sẽ tự động chỉ hiện mã vạch.</div>
+    </div>
+    <div class="hint">Chọn đúng khổ tem đang lắp trong máy in nhiệt (Xprinter, Zebra…) để không bị lệch tem. QR và thông tin trên tem sẽ tự co giãn theo đúng kích thước đã chọn. Với tem quá nhỏ, tem chỉ hiện mã vạch do diện tích không đủ cho QR.</div>
   `, `<button class="btn" onclick="app.closeModal()">Huỷ</button><button class="btn btn-brand" onclick="app.confirmPrintLabels()">In tem</button>`);
 }
-function confirmPrintLabels(){
+function toggleCustomLabelSize(){
   const mode = document.getElementById("lblPrintMode").value;
+  document.getElementById("customLabelSize").style.display = mode==="custom" ? "block" : "none";
+}
+function confirmPrintLabels(){
+  let mode = document.getElementById("lblPrintMode").value;
+  if(mode==="custom"){
+    const w = Math.round(Number(document.getElementById("lblCustomW").value)||50);
+    const h = Math.round(Number(document.getElementById("lblCustomH").value)||30);
+    mode = `th${w}x${h}`;
+  }
   const ids = _labelPrintIds;
   closeModal();
   setTimeout(()=>renderAssetLabels(ids, mode), 150);
@@ -1335,6 +1355,24 @@ function resetPrintPage(){
 }
 window.addEventListener("afterprint", ()=>{ resetPrintPage(); });
 
+/* ---------- Nội dung QR: mã hoá đầy đủ thông tin thiết bị để quét bằng camera điện thoại
+   là xem được ngay (người đang dùng, thông số, giá trị, ngày mua) — không chỉ mã TB.
+   Mã vạch (CODE128) vẫn chỉ chứa mã thiết bị: đây là chuẩn của mã vạch 1D, dùng để máy quét
+   kho tra cứu nhanh trong ứng dụng; toàn bộ chi tiết được đưa vào QR bên cạnh. ---------- */
+function buildDeviceQRText(d){
+  const lines = [
+    `MÃ TÀI SẢN: ${d.id}`,
+    `Thiết bị: ${d.type} - ${d.brand}`,
+    d.specs ? `Thông số: ${d.specs}` : null,
+    `Người đang sử dụng: ${d.holderName||"Trong kho"}`,
+    d.dept ? `Bộ phận: ${d.dept}` : null,
+    `Tình trạng: ${d.condition||"—"}`,
+    d.purchaseDate ? `Ngày mua: ${fmtDate(d.purchaseDate)}` : null,
+    d.purchasePrice ? `Giá trị mua: ${fmtVND(d.purchasePrice)}` : null
+  ].filter(Boolean);
+  return lines.join("\n");
+}
+
 /* ---------- Tem tài sản: mã vạch + QR — phục vụ kiểm kê ---------- */
 function renderAssetLabels(ids, mode){
   mode = mode || "a4";
@@ -1342,25 +1380,39 @@ function renderAssetLabels(ids, mode){
   if(devices.length===0){ toast("Không tìm thấy thiết bị để in tem", true); return; }
   const area = document.getElementById("print-area");
 
-  /* ---- Khổ tem máy in nhiệt (Xprinter, Zebra…): mỗi thiết bị 1 tem, khổ giấy đúng bằng kích thước tem ---- */
+  /* ---- Khổ tem máy in nhiệt (Xprinter, Zebra…): mỗi thiết bị 1 tem, khổ giấy đúng bằng kích thước tem.
+     QR, mã vạch và cỡ chữ được TÍNH TOÁN TỈ LỆ theo đúng wmm x hmm người dùng chọn/nhập,
+     thay vì dùng con số cố định — nhờ vậy tem 40x30, 50x30 hay kích thước tuỳ chỉnh đều
+     hiển thị đúng tỉ lệ, không bị vỡ layout hay tràn tem. ---- */
   if(mode.startsWith("th")){
     const m = mode.match(/th(\d+)x(\d+)/);
     const wmm = m ? Number(m[1]) : 50;
     const hmm = m ? Number(m[2]) : 30;
-    const compact = wmm < 40; // tem quá nhỏ (30x20) chỉ đủ chỗ cho mã vạch
+    const areaMm2 = wmm*hmm;
+    const compact = areaMm2 < 950 || wmm < 34; // tem quá nhỏ (vd 30x20) chỉ đủ chỗ cho mã vạch
+    // scale tương đối so với tem chuẩn 50x30mm (giá trị gốc đã hoạt động tốt trên máy in thực tế)
+    const scale = Math.max(0.55, Math.min(1.8, Math.sqrt(areaMm2/(50*30))));
+    const PX_PER_MM = 3.78;
+    const qrMm = Math.max(8, Math.min(hmm*0.62, wmm*0.42));
+    const qrPx = Math.round(qrMm*PX_PER_MM);
+    const bcHeightPx = Math.round(Math.max(10, Math.min(28, 22*scale)));
+    const bcFontPx = Math.round(Math.max(6, Math.min(11, 9*scale)));
+    const idFontPx = Math.round(Math.max(10, Math.min(20, 13*scale)));
+    const coFontPx = Math.round(Math.max(6, Math.min(9, 7*scale)));
+    const nameFontPx = Math.round(Math.max(6, Math.min(10, 7*scale)));
     setPrintPage(`${wmm}mm ${hmm}mm`, "1.5mm");
     area.innerHTML = devices.map((d,i)=>`
       <div class="thermal-page ${i===devices.length-1?'last':''}" style="width:${wmm-3}mm;height:${hmm-3}mm;">
-        <div class="th-co">JEANIC · IT</div>
-        <div class="th-id">${esc(d.id)}</div>
-        <div class="th-name">${esc(d.type)} - ${esc(d.brand)}</div>
+        <div class="th-co" style="font-size:${coFontPx}px;">JEANIC · IT</div>
+        <div class="th-id" style="font-size:${idFontPx}px;">${esc(d.id)}</div>
+        <div class="th-name" style="font-size:${nameFontPx}px;">${esc(d.type)} - ${esc(d.brand)}</div>
         <svg class="th-barcode" id="th-bc-${esc(d.id)}"></svg>
         ${compact?"":`<div class="th-qr" id="th-qr-${esc(d.id)}"></div>`}
       </div>`).join("");
     setTimeout(()=>{
       devices.forEach(d=>{
-        try{ JsBarcode("#th-bc-"+d.id, d.id, {format:"CODE128", displayValue:true, fontSize:hmm<25?7:9, height:hmm<25?16:22, margin:0}); }catch(e){}
-        if(!compact){ try{ new QRCode(document.getElementById("th-qr-"+d.id), {text:d.id, width:30, height:30, correctLevel:QRCode.CorrectLevel.M}); }catch(e){} }
+        try{ JsBarcode("#th-bc-"+d.id, d.id, {format:"CODE128", displayValue:true, fontSize:bcFontPx, height:bcHeightPx, margin:0}); }catch(e){}
+        if(!compact){ try{ new QRCode(document.getElementById("th-qr-"+d.id), {text:buildDeviceQRText(d), width:qrPx, height:qrPx, correctLevel:QRCode.CorrectLevel.M}); }catch(e){} }
       });
       setTimeout(()=>{ try{ window.print(); }catch(e){} }, 200);
     }, 30);
@@ -1387,6 +1439,8 @@ function renderAssetLabels(ids, mode){
           <div class="solo-kv"><span>Người đang sử dụng</span><b>${esc(d.holderName||"Trong kho")}</b></div>
           <div class="solo-kv"><span>Bộ phận</span><b>${esc(d.dept||"—")}</b></div>
           <div class="solo-kv"><span>Ngày nhập kho</span><b>${fmtDate(d.importDate)}</b></div>
+          <div class="solo-kv"><span>Ngày mua</span><b>${d.purchaseDate?fmtDate(d.purchaseDate):"—"}</b></div>
+          <div class="solo-kv"><span>Giá trị mua</span><b>${d.purchasePrice?fmtVND(d.purchasePrice):"—"}</b></div>
           <div class="solo-kv"><span>Tình trạng</span><b>${esc(d.condition)}</b></div>
           <div class="lc-codes">
             <div class="lc-qr" id="qr-solo"></div>
@@ -1395,7 +1449,7 @@ function renderAssetLabels(ids, mode){
         </div>
       </div>`;
     setTimeout(()=>{
-      try{ new QRCode(document.getElementById("qr-solo"), {text:d.id, width:110, height:110, correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
+      try{ new QRCode(document.getElementById("qr-solo"), {text:buildDeviceQRText(d), width:110, height:110, correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
       try{ JsBarcode("#bc-solo", d.id, {format:"CODE128", displayValue:true, fontSize:16, height:46, margin:4}); }catch(e){}
       setTimeout(()=>{ try{ window.print(); }catch(e){} }, 200);
     }, 30);
@@ -1420,6 +1474,7 @@ function renderAssetLabels(ids, mode){
             <div class="lc-id">${esc(d.id)}</div>
             <div class="lc-name">${esc(d.type)} — ${esc(d.brand)}</div>
             <div class="lc-sub">${esc(d.holderName||"Trong kho")}${d.dept?" · "+esc(d.dept):""}</div>
+            ${(d.purchaseDate||d.purchasePrice) ? `<div class="lc-sub">${d.purchaseDate?"Mua: "+fmtDate(d.purchaseDate):""}${d.purchaseDate&&d.purchasePrice?" · ":""}${d.purchasePrice?fmtVND(d.purchasePrice):""}</div>` : ""}
             <div class="lc-codes">
               <div class="lc-qr" id="qr-${esc(d.id)}"></div>
               <svg class="lc-barcode" id="bc-${esc(d.id)}"></svg>
@@ -1430,11 +1485,65 @@ function renderAssetLabels(ids, mode){
 
   setTimeout(()=>{
     devices.forEach(d=>{
-      try{ new QRCode(document.getElementById("qr-"+d.id), {text:d.id, width:64, height:64, correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
+      try{ new QRCode(document.getElementById("qr-"+d.id), {text:buildDeviceQRText(d), width:64, height:64, correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
       try{ JsBarcode("#bc-"+d.id, d.id, {format:"CODE128", displayValue:true, fontSize:11, height:28, margin:2}); }catch(e){}
     });
     setTimeout(()=>{ try{ window.print(); }catch(e){} }, 200);
   }, 30);
+}
+
+/* =========================================================
+   BIÊN BẢN ĐÃ LẬP — kho lưu trữ mọi biên bản (bàn giao/thu hồi/điều chuyển)
+   đã in, có thể xem/in lại bất cứ lúc nào mà không cần đi tìm trong lịch sử.
+========================================================= */
+const DOC_TYPE_LABEL = {ban_giao:"Bàn giao", thu_hoi:"Thu hồi", dieu_chuyen:"Điều chuyển"};
+let docFilter = {type:"all", q:""};
+function setDocFilter(k,v){ docFilter[k]=v; renderDocuments(); }
+function collectDocuments(){
+  const docs = [];
+  state.devices.forEach(d=>(d.history||[]).forEach(h=>{
+    if(h.print){ docs.push({...h, deviceId:d.id, deviceType:d.type, deviceBrand:d.brand}); }
+  }));
+  docs.sort((a,b)=>new Date(b.date)-new Date(a.date));
+  return docs;
+}
+function renderDocuments(){
+  const all = collectDocuments();
+  const q = docFilter.q.toLowerCase();
+  const list = all.filter(h=>{
+    if(docFilter.type!=="all" && h.type!==docFilter.type) return false;
+    if(q){
+      const hay = `${h.deviceId} ${h.deviceType} ${h.deviceBrand} ${h.to||""} ${h.from||""} ${h.by||""}`.toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  document.getElementById("content").innerHTML = `
+    <div class="toolbar" style="display:flex;gap:10px;flex-wrap:wrap;">
+      <input type="search" placeholder="Tìm theo mã TB, người giao/nhận, người lập…" value="${esc(docFilter.q)}" oninput="app.setDocFilter('q', this.value)" style="flex:1;min-width:220px;">
+      <select onchange="app.setDocFilter('type', this.value)" style="min-width:200px;">
+        <option value="all" ${docFilter.type==='all'?'selected':''}>Tất cả loại biên bản</option>
+        <option value="ban_giao" ${docFilter.type==='ban_giao'?'selected':''}>Bàn giao</option>
+        <option value="thu_hoi" ${docFilter.type==='thu_hoi'?'selected':''}>Thu hồi</option>
+        <option value="dieu_chuyen" ${docFilter.type==='dieu_chuyen'?'selected':''}>Điều chuyển</option>
+      </select>
+    </div>
+    <div class="panel" style="padding:14px 0 4px;">
+      ${list.length===0 ? emptyState("Chưa có biên bản nào","Các biên bản bàn giao, thu hồi, điều chuyển bạn đã lập & in sẽ được lưu lại và hiển thị ở đây để xem lại bất cứ lúc nào.") : `
+      <table class="data">
+        <tr><th style="padding-left:22px;">Ngày lập</th><th>Loại biên bản</th><th>Thiết bị</th><th>Bên giao</th><th>Bên nhận</th><th>Người lập</th><th></th></tr>
+        ${list.map(h=>`
+          <tr>
+            <td style="padding-left:22px;white-space:nowrap;font-family:var(--font-mono);font-size:12px;color:var(--ink-soft)">${fmtDateTime(h.date)}</td>
+            <td><span class="pill pill-brand">${esc(DOC_TYPE_LABEL[h.type]||h.print?.title||h.label||"—")}</span></td>
+            <td class="rowclick" onclick="app.setView('device','${h.deviceId}')"><b>${esc(h.deviceId)}</b><div class="cell-sub">${esc(h.deviceType)} · ${esc(h.deviceBrand)}</div></td>
+            <td class="cell-sub">${esc(h.print?.from?.name || h.from || "—")}</td>
+            <td class="cell-sub">${esc(h.print?.to?.name || h.to || "—")}</td>
+            <td class="cell-sub">${esc(h.by||"—")}</td>
+            <td><button class="btn btn-sm" onclick="app.reprintSaved('${h.deviceId}','${h.uid}')">🖨 Xem lại / In lại</button></td>
+          </tr>`).join("")}
+      </table>`}
+    </div>`;
 }
 
 /* =========================================================
@@ -1929,9 +2038,9 @@ function importBackup(file){
 window.app = {
   login, logout, enterLocalMode, setView, closeModal,
   openDeviceForm, saveDevice, openEmployeeForm, saveEmployee,
-  setDeviceFilter, setEmployeeQuery,
+  setDeviceFilter, setEmployeeQuery, setDocFilter,
   toggleLabelSelect, toggleLabelSelectAll, printSelectedLabels, printAssetLabel, reprintSaved,
-  openLabelPrintOptions, confirmPrintLabels,
+  openLabelPrintOptions, confirmPrintLabels, toggleCustomLabelSize,
   openOpForm, previewOpDevice, submitOp,
   exportDevicesCSV,
   downloadImportTemplate, handleImportFile, setImportSheet, buildImportPreview, commitImport,
