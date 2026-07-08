@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JEANIC IT · Quản lý vòng đời thiết bị</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Firebase (Compat v10) -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  
+  <!-- External Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/JsBarcode/3.11.6/JsBarcode.all.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  
+  <!-- Phosphor Icons (for modern beautiful icons) -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <!-- App CSS -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Login Screen -->
+  <div id="login-overlay">
+    <div class="login-box">
+      <div class="login-header">
+        <div class="logo">JT</div>
+        <h3>JEANIC IT</h3>
+        <div class="sub">Quản lý vòng đời thiết bị CNTT</div>
+      </div>
+      
+      <div class="err" id="loginErr"></div>
+      <div class="success" id="loginSuccess"></div>
+      
+      <div class="field">
+        <label>Email nội bộ</label>
+        <div class="input-wrap">
+          <i class="ph ph-envelope"></i>
+          <input type="email" id="loginEmail" placeholder="ban@jeanicgarment.com">
+        </div>
+      </div>
+      <div class="field">
+        <label>Mật khẩu</label>
+        <div class="input-wrap">
+          <i class="ph ph-lock-key"></i>
+          <input type="password" id="loginPass" placeholder="••••••••">
+        </div>
+      </div>
+      
+      <div class="auth-actions">
+        <button class="btn btn-brand" onclick="app.login()">Đăng nhập</button>
+        <button class="btn btn-ghost" onclick="app.signup()">Tạo tài khoản</button>
+      </div>
+      
+      <div class="login-mode" id="localModeNote" style="display:none;">
+        <i class="ph ph-wifi-slash"></i> Đang chạy offline — 
+        <button onclick="app.enterLocalMode()">Vào thẳng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main App Shell -->
+  <div id="shell" style="display:none;">
+    <!-- Sidebar -->
+    <aside id="sidebar">
+      <div class="brand">
+        <div class="logo-ph">JT</div>
+        <div class="tt">
+          <div class="tag">Jeanic Garment</div>
+          <h1>Quản lý Tài sản</h1>
+        </div>
+      </div>
+      <nav class="main-nav" id="mainNav"></nav>
+      <div class="foot" id="sidebarFoot">
+        <div class="user-info">
+          <div class="avatar"><i class="ph ph-user"></i></div>
+          <div class="details">
+            <div class="email" id="currentUserEmail">Đang tải...</div>
+            <div class="role" id="currentUserRole">—</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div id="main">
+      <div id="topbar">
+        <div class="page-head">
+          <h2 id="pageTitle">Tổng quan</h2>
+          <div class="desc" id="pageDesc">Tình trạng thiết bị CNTT toàn công ty</div>
+        </div>
+        <div id="topbarRight">
+          <div id="topbarActions" class="actions-group"></div>
+          <button class="btn btn-icon btn-ghost" onclick="app.logout()" title="Đăng xuất">
+            <i class="ph ph-sign-out"></i> Đăng xuất
+          </button>
+        </div>
+      </div>
+      
+      <div id="content" class="fade-in">
+        <!-- Views injected here -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <div id="modal-root">
+    <div class="modal-box" id="modalBox"></div>
+  </div>
+  
+  <!-- Toasts -->
+  <div id="toast-wrap"></div>
+  
+  <!-- Print Area -->
+  <div id="print-area"></div>
+
+  <!-- App JS (Modules) -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
