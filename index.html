@@ -927,6 +927,7 @@ function eventDetailLine(h){
   if(h.type==="bao_tri_xong") return `Hoàn tất bảo trì, nhập lại kho — tình trạng: ${esc(h.condition||"")}`;
   if(h.type==="thanh_ly") return `Lý do: ${esc(h.reason||"—")}`;
   if(h.type==="sua_chua") return `${esc(h.reason||"Sửa chữa")}${h.vendor?` — tại ${esc(h.vendor)}`:""} — chi phí ${fmtVND(h.cost)}`;
+  if(h.type==="cap_nhat") return (h.changes&&h.changes.length) ? h.changes.map(c=>esc(c)).join("<br>") : "Cập nhật thông tin thiết bị";
   return esc(h.note||"");
 }
 
@@ -998,6 +999,13 @@ function openDeviceForm(id){
     </div>` : ""}
   `, `<button class="btn btn-ghost" onclick="app.closeModal()">Huỷ</button><button class="btn btn-brand" onclick="app.saveDevice(${isEdit?`'${id}'`:'null'})">Lưu thiết bị</button>`);
 }
+const DEVICE_FIELD_LABELS = {
+  type:"Loại thiết bị", brand:"Thương hiệu", specs:"Thông số kỹ thuật", condition:"Tình trạng",
+  importDate:"Ngày nhập kho", note:"Ghi chú", purchaseDate:"Ngày mua", purchasePrice:"Giá mua",
+  vendor:"Nhà cung cấp", invoiceNo:"Số hoá đơn", usefulLifeYears:"Thời gian khấu hao (năm)",
+  warrantyMonths:"Bảo hành (tháng)", salvageValue:"Giá trị thanh lý"
+};
+function newHistoryUid(){ return "H"+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 async function saveDevice(id){
   const type = document.getElementById("fType").value.trim();
   const brand = document.getElementById("fBrand").value.trim();
@@ -1013,10 +1021,28 @@ async function saveDevice(id){
   const usefulLifeYears = Number(document.getElementById("fUsefulLifeYears").value) || state.settings.usefulLifeYears;
   const warrantyMonths = Number(document.getElementById("fWarrantyMonths").value) || 0;
   const salvageValue = Number(document.getElementById("fSalvageValue").value) || 0;
+  let printPayload = null;
 
   if(id){
     const d = state.devices.find(x=>x.id===id);
-    Object.assign(d, {type,brand,specs,condition,importDate,note,purchaseDate,purchasePrice,vendor,invoiceNo,usefulLifeYears,warrantyMonths,salvageValue});
+    const after = {type,brand,specs,condition,importDate,note,purchaseDate,purchasePrice,vendor,invoiceNo,usefulLifeYears,warrantyMonths,salvageValue};
+    // Ghi lại NHẬT KÝ THAY ĐỔI: so sánh từng trường trước/sau, chỉ log những gì thực sự thay đổi —
+    // đảm bảo mọi chỉnh sửa thông tin thiết bị (kể cả sau khi đã cấp phát) đều có dấu vết trong lịch sử.
+    const changes = [];
+    Object.keys(after).forEach(k=>{
+      const bv = d[k]===undefined||d[k]===null ? "" : d[k];
+      const av = after[k]===undefined||after[k]===null ? "" : after[k];
+      if(String(bv)!==String(av)){
+        const label = DEVICE_FIELD_LABELS[k]||k;
+        const fmtV = v => (k==="purchasePrice"||k==="salvageValue") ? fmtVND(Number(v)||0) : (v===""?"—":v);
+        changes.push(`${label}: ${fmtV(bv)} → ${fmtV(av)}`);
+      }
+    });
+    Object.assign(d, after);
+    if(changes.length){
+      d.history = d.history||[];
+      d.history.unshift({date:new Date().toISOString(), type:"cap_nhat", label:"Cập nhật thông tin thiết bị", changes, by:currentUser?.email||"", uid:newHistoryUid()});
+    }
   } else {
     const holderSel = document.getElementById("fHolder");
     const empId = holderSel ? holderSel.value : "";
@@ -1029,7 +1055,13 @@ async function saveDevice(id){
       importDate, note, purchaseDate, purchasePrice, vendor, invoiceNo, usefulLifeYears, warrantyMonths, salvageValue,
       repairs:[], history:[]
     };
-    if(emp){ d.history.push({date:new Date().toISOString(), type:"ban_giao", label:"Bàn giao cho nhân viên", to:emp.name, dept:emp.dept, condition, by:currentUser?.email||"", note:"Nhập kho và bàn giao ngay"}); }
+    if(emp){
+      // Cấp phát ngay lúc thêm mới cũng được coi là một nghiệp vụ BÀN GIAO đầy đủ:
+      // sinh biên bản có thể in/xem lại giống hệt khi thao tác qua màn hình Nghiệp vụ.
+      const nowISO = new Date().toISOString();
+      printPayload = {op:"ban_giao", title:OP_META.ban_giao.title, device:d, from:{name:"Kho IT", dept:"IT"}, to:{name:emp.name, dept:emp.dept}, by:currentUser?.email||"", note:"Nhập kho và bàn giao ngay", date:nowISO};
+      d.history.push({date:nowISO, type:"ban_giao", label:"Bàn giao cho nhân viên", to:emp.name, dept:emp.dept, condition, by:currentUser?.email||"", note:"Nhập kho và bàn giao ngay", uid:newHistoryUid(), print:printPayload});
+    }
     state.devices.push(d);
     state.meta.deviceSeq++;
     await persistMeta();
@@ -1038,7 +1070,9 @@ async function saveDevice(id){
   closeModal();
   toast("Đã lưu thiết bị "+(id||nextDeviceId()));
   setView(state.view==="device"?"device":"devices", id);
+  if(printPayload) renderPrintable(printPayload);
 }
+
 
 function openEmployeeForm(id){
   const e = id ? state.employees.find(x=>x.id===id) : null;
