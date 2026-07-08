@@ -13,6 +13,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 <!-- SheetJS: đọc/ghi thật file Excel (.xlsx/.xls) và CSV -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- JsBarcode + QRCode: sinh mã vạch & mã QR cho tem tài sản phục vụ kiểm kê -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/JsBarcode/3.11.6/JsBarcode.all.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
 <style>
 :root{
@@ -185,11 +188,16 @@ table.data tr.row-update{background:var(--amber-tint);}
 
 #print-area{display:none;}
 @media print{
-  #shell > *:not(#print-area), #login-overlay, #modal-root, #toast-wrap{display:none !important;}
+  @page{ size:A4 portrait; margin:12mm; }
+  #shell, #login-overlay, #modal-root, #toast-wrap{display:none !important;}
   #print-area{display:block !important;}
   body{background:#fff;}
+  .bb-page{ page-break-after:avoid; page-break-inside:avoid; }
+  .label-sheet{ page-break-after:always; }
+  .label-sheet:last-child{ page-break-after:auto; }
 }
-.bb-page{max-width:760px;margin:0 auto;font-family:var(--font-body);font-size:13px;color:#111;padding:20px;}
+/* ---------- Trang in: khổ A4 dọc, 1 trang ---------- */
+.bb-page{max-width:760px;margin:0 auto;font-family:var(--font-body);font-size:13px;color:#111;padding:20px;box-sizing:border-box;min-height:273mm;}
 .bb-head{text-align:center;margin-bottom:16px;}
 .bb-head .co{font-weight:700;font-size:14px;}
 .bb-head .dept{font-size:12.5px;color:#444;}
@@ -205,6 +213,39 @@ table.bb-table th{background:#f0f0f0;}
 .bb-sign div{width:45%;}
 .bb-sign .cap{font-size:12px;font-weight:600;}
 .bb-sign .sub{font-size:11px;color:#555;font-style:italic;margin-bottom:50px;}
+
+/* ---------- Tem tài sản (mã vạch / QR) — phục vụ kiểm kê ---------- */
+.label-sheet{width:186mm;margin:0 auto;font-family:var(--font-body);color:#111;}
+.label-sheet .ls-head{text-align:center;margin-bottom:8mm;}
+.label-sheet .ls-head .co{font-weight:700;font-size:13px;}
+.label-sheet .ls-head h1{font-family:var(--font-display);font-size:16px;margin:4px 0 0;}
+.label-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:5mm;}
+.label-card{border:1px solid #999;border-radius:3mm;padding:4mm 4mm 3mm;display:flex;flex-direction:column;align-items:center;text-align:center;break-inside:avoid;}
+.label-card .lc-co{font-size:9.5px;font-weight:700;letter-spacing:.03em;}
+.label-card .lc-id{font-family:var(--font-mono);font-size:15px;font-weight:700;margin:2px 0 4px;}
+.label-card .lc-name{font-size:11px;font-weight:600;line-height:1.3;}
+.label-card .lc-sub{font-size:9.5px;color:#444;margin:1px 0 4px;}
+.label-card .lc-codes{display:flex;align-items:center;justify-content:center;gap:6mm;margin-top:2px;}
+.label-card .lc-qr{flex:none;}
+.label-card svg.lc-barcode{max-width:100%;}
+.solo-card{border:1px solid #999;border-radius:4mm;padding:14mm 10mm;display:flex;flex-direction:column;align-items:center;text-align:center;}
+.solo-card .lc-co{font-size:12px;}
+.solo-card .lc-id{font-size:30px;margin:6px 0 10px;}
+.solo-card .lc-name{font-size:16px;}
+.solo-card .lc-sub{font-size:12.5px;margin-bottom:16px;}
+.solo-card .solo-kv{font-size:12px;color:#333;text-align:left;width:100%;max-width:320px;margin:4px 0;display:flex;justify-content:space-between;border-bottom:1px dotted #ccc;padding-bottom:3px;}
+.solo-card .lc-codes{margin-top:16px;gap:12mm;}
+.label-actions{display:flex;gap:8px;align-items:center;}
+.chk-col{width:30px;text-align:center;}
+
+/* ---------- Tem khổ máy in nhiệt (thermal) ---------- */
+.thermal-page{box-sizing:border-box;margin:0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-family:var(--font-mono);overflow:hidden;page-break-after:always;}
+.thermal-page.last{page-break-after:auto;}
+.thermal-page .th-co{font-size:7px;font-weight:700;letter-spacing:.03em;line-height:1.1;}
+.thermal-page .th-id{font-family:var(--font-mono);font-weight:700;font-size:13px;line-height:1.2;margin:0.8mm 0 0;}
+.thermal-page .th-name{font-size:7px;line-height:1.15;margin:0.5mm 0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.thermal-page svg.th-barcode{max-width:100%;}
+.thermal-page .th-qr{margin-top:0.8mm;}
 </style>
 </head>
 <body>
@@ -689,8 +730,11 @@ function emptyState(title, sub){
    THIẾT BỊ
 ========================================================= */
 let deviceFilter = {q:"", status:"all", dept:"all"};
+let selectedForLabel = new Set();
 function renderDevices(){
-  document.getElementById("topbarActions").innerHTML = `<button class="btn btn-brand" onclick="app.openDeviceForm()">+ Thêm thiết bị</button>`;
+  document.getElementById("topbarActions").innerHTML = `
+    <button class="btn" onclick="app.printSelectedLabels()">🏷️ In tem đã chọn (${selectedForLabel.size})</button>
+    <button class="btn btn-brand" onclick="app.openDeviceForm()">+ Thêm thiết bị</button>`;
   const q = deviceFilter.q.toLowerCase();
   const list = state.devices.filter(d=>{
     if(deviceFilter.status!=="all" && d.status!==deviceFilter.status) return false;
@@ -698,6 +742,9 @@ function renderDevices(){
     if(q && !(`${d.id} ${d.type} ${d.brand} ${d.holderName||""}`.toLowerCase().includes(q))) return false;
     return true;
   });
+  // dọn lựa chọn tem khỏi các thiết bị không còn tồn tại
+  [...selectedForLabel].forEach(id=>{ if(!state.devices.some(d=>d.id===id)) selectedForLabel.delete(id); });
+  const allChecked = list.length>0 && list.every(d=>selectedForLabel.has(d.id));
   const alertIds = new Set(computeAlerts().map(a=>a.device.id));
   document.getElementById("content").innerHTML = `
     <div class="toolbar">
@@ -714,27 +761,72 @@ function renderDevices(){
     <div class="panel" style="padding:14px 0 4px;">
       ${list.length===0 ? emptyState("Không tìm thấy thiết bị","Thử đổi bộ lọc, hoặc thêm thiết bị mới.") : `
       <table class="data">
-        <tr><th style="padding-left:22px;">Mã TB</th><th>Loại / Thương hiệu</th><th>Tình trạng</th><th>Trạng thái</th><th>Người dùng</th><th>Bộ phận</th><th></th></tr>
+        <tr><th class="chk-col"><input type="checkbox" ${allChecked?'checked':''} onclick="event.stopPropagation();app.toggleLabelSelectAll(this.checked)"></th><th style="padding-left:6px;">Mã TB</th><th>Loại / Thương hiệu</th><th>Tình trạng</th><th>Trạng thái</th><th>Người dùng</th><th>Bộ phận</th><th></th><th></th></tr>
         ${list.map(d=>`
           <tr class="rowclick" onclick="app.setView('device','${d.id}')">
-            <td style="padding-left:22px;"><b>${esc(d.id)}</b></td>
+            <td class="chk-col" onclick="event.stopPropagation();"><input type="checkbox" ${selectedForLabel.has(d.id)?'checked':''} onchange="app.toggleLabelSelect('${d.id}', this.checked)"></td>
+            <td><b>${esc(d.id)}</b></td>
             <td><div class="cell-title">${esc(d.type)}</div><div class="cell-sub">${esc(d.brand)}</div></td>
             <td>${esc(d.condition)}</td>
             <td><span class="pill ${STATUS_META[d.status]?.pill||'pill-slate'}">${esc(d.status)}</span></td>
             <td>${esc(d.holderName||"—")}</td>
             <td>${esc(d.dept||"—")}</td>
             <td>${alertIds.has(d.id)?'<span class="pill pill-rust">⚠ Chú ý</span>':""}</td>
+            <td onclick="event.stopPropagation();"><button class="btn btn-sm" onclick="app.printAssetLabel('${d.id}')">🏷️ In tem</button></td>
           </tr>`).join("")}
       </table>`}
     </div>
   `;
 }
 function setDeviceFilter(k,v){ deviceFilter[k]=v; renderDevices(); }
+function toggleLabelSelect(id, checked){ if(checked) selectedForLabel.add(id); else selectedForLabel.delete(id); renderDevices(); }
+function toggleLabelSelectAll(checked){
+  const q = deviceFilter.q.toLowerCase();
+  const list = state.devices.filter(d=>{
+    if(deviceFilter.status!=="all" && d.status!==deviceFilter.status) return false;
+    if(deviceFilter.dept!=="all" && d.dept!==deviceFilter.dept) return false;
+    if(q && !(`${d.id} ${d.type} ${d.brand} ${d.holderName||""}`.toLowerCase().includes(q))) return false;
+    return true;
+  });
+  list.forEach(d=> checked ? selectedForLabel.add(d.id) : selectedForLabel.delete(d.id));
+  renderDevices();
+}
+function printSelectedLabels(){
+  if(selectedForLabel.size===0){ toast("Vui lòng chọn ít nhất 1 thiết bị để in tem", true); return; }
+  openLabelPrintOptions([...selectedForLabel]);
+}
+function printAssetLabel(id){ openLabelPrintOptions([id]); }
+
+/* ---------- Hộp thoại chọn khổ tem trước khi in ---------- */
+let _labelPrintIds = [];
+function openLabelPrintOptions(ids){
+  if(!ids || ids.length===0){ toast("Vui lòng chọn ít nhất 1 thiết bị để in tem", true); return; }
+  _labelPrintIds = ids;
+  openModal("In tem thiết bị ("+ids.length+")", `
+    <div class="field">
+      <label>Khổ giấy / máy in</label>
+      <select id="lblPrintMode">
+        <option value="a4">Giấy A4 thường — nhiều tem/trang, có mã vạch + QR</option>
+        <option value="th50x30">Máy in nhiệt — tem 50 x 30 mm</option>
+        <option value="th40x30">Máy in nhiệt — tem 40 x 30 mm</option>
+        <option value="th30x20">Máy in nhiệt — tem 30 x 20 mm (chỉ mã vạch)</option>
+      </select>
+    </div>
+    <div class="hint">Chọn đúng khổ tem đang lắp trong máy in nhiệt (Xprinter, Zebra…) để không bị lệch tem. Với tem 30×20mm, tem chỉ hiện mã vạch do diện tích quá nhỏ cho QR.</div>
+  `, `<button class="btn" onclick="app.closeModal()">Huỷ</button><button class="btn btn-brand" onclick="app.confirmPrintLabels()">In tem</button>`);
+}
+function confirmPrintLabels(){
+  const mode = document.getElementById("lblPrintMode").value;
+  const ids = _labelPrintIds;
+  closeModal();
+  setTimeout(()=>renderAssetLabels(ids, mode), 150);
+}
 
 function renderDeviceDetail(id){
   const d = state.devices.find(x=>x.id===id);
   document.getElementById("topbarActions").innerHTML = `
     <button class="btn" onclick="app.setView('devices')">← Danh sách</button>
+    <button class="btn" onclick="app.printAssetLabel('${id}')">🏷️ In tem/mã vạch</button>
     <button class="btn" onclick="app.openDeviceForm('${id}')">Sửa thông tin</button>
     <button class="btn btn-brand" onclick="app.openOpForm('sua_chua','${id}')">+ Ghi nhận sửa chữa</button>
   `;
@@ -801,6 +893,7 @@ function renderDeviceDetail(id){
               <div class="tl-date">${fmtDateTime(h.date)}</div>
               <div class="tl-label">${esc(h.label)}</div>
               <div class="tl-detail">${eventDetailLine(h)}${h.note?`<br>${esc(h.note)}`:""}${h.by?`<br>Thực hiện: ${esc(h.by)}`:""}</div>
+              ${h.print?`<div style="margin-top:6px;"><button class="btn btn-sm" onclick="app.reprintSaved('${d.id}','${h.uid}')">🖨 Mở lại trang in</button></div>`:""}
             </div>`).join("")}</div>` : emptyState("Chưa có sự kiện","Lịch sử bàn giao/thu hồi sẽ hiển thị ở đây.")}
         </div>
       </div>
@@ -1105,7 +1198,7 @@ async function submitOp(op){
     if(pDate || pPrice>0){ d.purchaseDate=pDate||d.purchaseDate; d.purchasePrice=pPrice||d.purchasePrice; d.usefulLifeYears=pLife; d.warrantyMonths=pWarranty; }
   }
 
-  const entry = {date:nowISO, by, note};
+  const entry = {date:nowISO, by, note, uid:"H"+Date.now().toString(36)+Math.random().toString(36).slice(2,7)};
   let printPayload = null;
 
   if(op==="ban_giao" || op==="dieu_chuyen"){
@@ -1148,6 +1241,7 @@ async function submitOp(op){
     d.repairs.push({date:nowISO, vendor, description, cost, by});
   }
 
+  if(printPayload){ entry.print = printPayload; }
   d.history = d.history||[];
   d.history.unshift(entry);
   await persistDevices();
@@ -1159,6 +1253,7 @@ async function submitOp(op){
 
 /* ---------- Biên bản in — đúng theo mẫu công ty Jeanic ---------- */
 function renderPrintable(p){
+  resetPrintPage();
   const d = p.device;
   const terms = {
     ban_giao:[
@@ -1220,6 +1315,128 @@ function renderPrintable(p){
   setTimeout(()=>{ try{ window.print(); }catch(e){} }, 250);
 }
 
+/* ---------- Mở lại trang in đã lưu (từ lịch sử vòng đời thiết bị) ---------- */
+function reprintSaved(deviceId, uid){
+  const d = state.devices.find(x=>x.id===deviceId);
+  const entry = d && (d.history||[]).find(h=>h.uid===uid);
+  if(!entry || !entry.print){ toast("Không tìm thấy biên bản đã lưu cho sự kiện này", true); return; }
+  renderPrintable(entry.print);
+}
+
+/* ---------- Điều khiển khổ giấy in động (@page) — dùng cho tem máy in nhiệt ---------- */
+function setPrintPage(sizeCss, marginCss){
+  let s = document.getElementById("dynPageStyle");
+  if(!s){ s = document.createElement("style"); s.id = "dynPageStyle"; document.head.appendChild(s); }
+  s.textContent = `@media print{ @page{ size:${sizeCss}; margin:${marginCss}; } }`;
+}
+function resetPrintPage(){
+  const s = document.getElementById("dynPageStyle");
+  if(s) s.textContent = "";
+}
+window.addEventListener("afterprint", ()=>{ resetPrintPage(); });
+
+/* ---------- Tem tài sản: mã vạch + QR — phục vụ kiểm kê ---------- */
+function renderAssetLabels(ids, mode){
+  mode = mode || "a4";
+  const devices = ids.map(id=>state.devices.find(d=>d.id===id)).filter(Boolean);
+  if(devices.length===0){ toast("Không tìm thấy thiết bị để in tem", true); return; }
+  const area = document.getElementById("print-area");
+
+  /* ---- Khổ tem máy in nhiệt (Xprinter, Zebra…): mỗi thiết bị 1 tem, khổ giấy đúng bằng kích thước tem ---- */
+  if(mode.startsWith("th")){
+    const m = mode.match(/th(\d+)x(\d+)/);
+    const wmm = m ? Number(m[1]) : 50;
+    const hmm = m ? Number(m[2]) : 30;
+    const compact = wmm < 40; // tem quá nhỏ (30x20) chỉ đủ chỗ cho mã vạch
+    setPrintPage(`${wmm}mm ${hmm}mm`, "1.5mm");
+    area.innerHTML = devices.map((d,i)=>`
+      <div class="thermal-page ${i===devices.length-1?'last':''}" style="width:${wmm-3}mm;height:${hmm-3}mm;">
+        <div class="th-co">JEANIC · IT</div>
+        <div class="th-id">${esc(d.id)}</div>
+        <div class="th-name">${esc(d.type)} - ${esc(d.brand)}</div>
+        <svg class="th-barcode" id="th-bc-${esc(d.id)}"></svg>
+        ${compact?"":`<div class="th-qr" id="th-qr-${esc(d.id)}"></div>`}
+      </div>`).join("");
+    setTimeout(()=>{
+      devices.forEach(d=>{
+        try{ JsBarcode("#th-bc-"+d.id, d.id, {format:"CODE128", displayValue:true, fontSize:hmm<25?7:9, height:hmm<25?16:22, margin:0}); }catch(e){}
+        if(!compact){ try{ new QRCode(document.getElementById("th-qr-"+d.id), {text:d.id, width:30, height:30, correctLevel:QRCode.CorrectLevel.M}); }catch(e){} }
+      });
+      setTimeout(()=>{ try{ window.print(); }catch(e){} }, 200);
+    }, 30);
+    return;
+  }
+
+  /* ---- Khổ A4 (mặc định): giữ nguyên khổ A4 dọc chuẩn ---- */
+  resetPrintPage();
+
+  if(devices.length===1){
+    // 1 thiết bị: in trên 1 trang A4 dọc, tem cỡ lớn kèm đầy đủ thông tin — dễ dán & quét khi kiểm kê
+    const d = devices[0];
+    area.innerHTML = `
+      <div class="label-sheet">
+        <div class="ls-head">
+          <div class="co">CÔNG TY JEANIC GARMENT SOLUTIONS · BỘ PHẬN IT</div>
+          <h1>TEM TÀI SẢN CNTT</h1>
+        </div>
+        <div class="solo-card">
+          <div class="lc-co">MÃ TÀI SẢN</div>
+          <div class="lc-id">${esc(d.id)}</div>
+          <div class="lc-name">${esc(d.type)} — ${esc(d.brand)}</div>
+          <div class="lc-sub">${esc(d.specs||"")}</div>
+          <div class="solo-kv"><span>Người đang sử dụng</span><b>${esc(d.holderName||"Trong kho")}</b></div>
+          <div class="solo-kv"><span>Bộ phận</span><b>${esc(d.dept||"—")}</b></div>
+          <div class="solo-kv"><span>Ngày nhập kho</span><b>${fmtDate(d.importDate)}</b></div>
+          <div class="solo-kv"><span>Tình trạng</span><b>${esc(d.condition)}</b></div>
+          <div class="lc-codes">
+            <div class="lc-qr" id="qr-solo"></div>
+            <svg class="lc-barcode" id="bc-solo"></svg>
+          </div>
+        </div>
+      </div>`;
+    setTimeout(()=>{
+      try{ new QRCode(document.getElementById("qr-solo"), {text:d.id, width:110, height:110, correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
+      try{ JsBarcode("#bc-solo", d.id, {format:"CODE128", displayValue:true, fontSize:16, height:46, margin:4}); }catch(e){}
+      setTimeout(()=>{ try{ window.print(); }catch(e){} }, 200);
+    }, 30);
+    return;
+  }
+
+  // Nhiều thiết bị: chia thành nhiều trang A4 dọc, mỗi trang 1 lưới tem (2 cột) để cắt dán
+  const PER_PAGE = 8;
+  const pages = [];
+  for(let i=0;i<devices.length;i+=PER_PAGE) pages.push(devices.slice(i,i+PER_PAGE));
+
+  area.innerHTML = pages.map((pageDevices, pi)=>`
+    <div class="label-sheet">
+      <div class="ls-head">
+        <div class="co">CÔNG TY JEANIC GARMENT SOLUTIONS · BỘ PHẬN IT</div>
+        <h1>TEM TÀI SẢN CNTT — Trang ${pi+1}/${pages.length}</h1>
+      </div>
+      <div class="label-grid">
+        ${pageDevices.map(d=>`
+          <div class="label-card">
+            <div class="lc-co">JEANIC · IT</div>
+            <div class="lc-id">${esc(d.id)}</div>
+            <div class="lc-name">${esc(d.type)} — ${esc(d.brand)}</div>
+            <div class="lc-sub">${esc(d.holderName||"Trong kho")}${d.dept?" · "+esc(d.dept):""}</div>
+            <div class="lc-codes">
+              <div class="lc-qr" id="qr-${esc(d.id)}"></div>
+              <svg class="lc-barcode" id="bc-${esc(d.id)}"></svg>
+            </div>
+          </div>`).join("")}
+      </div>
+    </div>`).join("");
+
+  setTimeout(()=>{
+    devices.forEach(d=>{
+      try{ new QRCode(document.getElementById("qr-"+d.id), {text:d.id, width:64, height:64, correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
+      try{ JsBarcode("#bc-"+d.id, d.id, {format:"CODE128", displayValue:true, fontSize:11, height:28, margin:2}); }catch(e){}
+    });
+    setTimeout(()=>{ try{ window.print(); }catch(e){} }, 200);
+  }, 30);
+}
+
 /* =========================================================
    LỊCH SỬ TOÀN HỆ THỐNG
 ========================================================= */
@@ -1231,7 +1448,7 @@ function renderHistory(){
     <div class="panel" style="padding:14px 0 4px;">
       ${all.length===0 ? emptyState("Chưa có sự kiện nào","Lịch sử vòng đời thiết bị sẽ hiển thị ở đây.") : `
       <table class="data">
-        <tr><th style="padding-left:22px;">Ngày</th><th>Thiết bị</th><th>Sự kiện</th><th>Chi tiết</th><th>Người thực hiện</th></tr>
+        <tr><th style="padding-left:22px;">Ngày</th><th>Thiết bị</th><th>Sự kiện</th><th>Chi tiết</th><th>Người thực hiện</th><th></th></tr>
         ${all.map(h=>`
           <tr class="rowclick" onclick="app.setView('device','${h.deviceId}')">
             <td style="padding-left:22px;white-space:nowrap;font-family:var(--font-mono);font-size:12px;color:var(--ink-soft)">${fmtDateTime(h.date)}</td>
@@ -1239,6 +1456,7 @@ function renderHistory(){
             <td>${esc(h.label)}</td>
             <td class="cell-sub">${eventDetailLine(h)}</td>
             <td class="cell-sub">${esc(h.by||"—")}</td>
+            <td onclick="event.stopPropagation();">${h.print?`<button class="btn btn-sm" onclick="app.reprintSaved('${h.deviceId}','${h.uid}')">🖨 In lại</button>`:""}</td>
           </tr>`).join("")}
       </table>`}
     </div>`;
@@ -1712,6 +1930,8 @@ window.app = {
   login, logout, enterLocalMode, setView, closeModal,
   openDeviceForm, saveDevice, openEmployeeForm, saveEmployee,
   setDeviceFilter, setEmployeeQuery,
+  toggleLabelSelect, toggleLabelSelectAll, printSelectedLabels, printAssetLabel, reprintSaved,
+  openLabelPrintOptions, confirmPrintLabels,
   openOpForm, previewOpDevice, submitOp,
   exportDevicesCSV,
   downloadImportTemplate, handleImportFile, setImportSheet, buildImportPreview, commitImport,
