@@ -191,8 +191,11 @@ export function renderDevices(filter) {
               <td>${esc(d.dept || "—")}</td>
               <td>${alertIds.has(d.id) ? '<span class="pill pill-danger"><i class="ph ph-warning"></i> Chú ý</span>' : ""}</td>
               <td onclick="event.stopPropagation();">
-                <button class="btn btn-sm btn-ghost" onclick="app.printAssetLabel('${d.id}')" title="In tem">
+                <button class="btn btn-sm btn-ghost" onclick="app.printAssetLabel('${d.id}')" title="In tem (khổ A4)">
                   <i class="ph ph-qr-code"></i>
+                </button>
+                <button class="btn btn-sm btn-ghost" onclick="app.printAssetLabelMini('${d.id}')" title="In tem nhỏ 20×20mm">
+                  <i class="ph ph-tag-simple"></i>
                 </button>
               </td>
             </tr>
@@ -230,7 +233,8 @@ export function renderDeviceDetail(id) {
             <h3><i class="ph ph-laptop"></i> ${esc(d.id)} — ${esc(d.type)}</h3>
             <div style="display:flex; gap:8px;">
               <button class="btn btn-sm btn-ghost" onclick="app.openDeviceForm('${d.id}')"><i class="ph ph-pencil-simple"></i> Sửa</button>
-              <button class="btn btn-sm btn-ghost" onclick="app.printAssetLabel('${d.id}')"><i class="ph ph-qr-code"></i> In tem</button>
+              <button class="btn btn-sm btn-ghost" onclick="app.printAssetLabel('${d.id}')"><i class="ph ph-qr-code"></i> In tem (A4)</button>
+              <button class="btn btn-sm btn-ghost" onclick="app.printAssetLabelMini('${d.id}')"><i class="ph ph-tag-simple"></i> In tem 20×20mm</button>
             </div>
           </div>
           <div class="kv"><b>Mã thiết bị</b><span style="font-family:var(--font-mono);">${esc(d.id)}</span></div>
@@ -357,7 +361,7 @@ export function renderEmployees(filter) {
             <th>Mã NV</th><th>Họ tên</th><th>Bộ phận</th><th>Chức vụ</th><th>Liên hệ</th><th>Trạng thái</th><th>Thiết bị</th><th></th>
           </tr>
           ${list.map(e => `
-            <tr>
+            <tr class="rowclick" onclick="app.setView('employee','${e.id}')">
               <td><b style="color:#fff; font-family: var(--font-mono);">${esc(e.id)}</b></td>
               <td class="cell-title">${esc(e.name)}</td>
               <td>${esc(e.dept || "—")}</td>
@@ -365,7 +369,7 @@ export function renderEmployees(filter) {
               <td class="cell-sub">${esc(e.email || "—")}<br>${esc(e.phone || "")}</td>
               <td><span class="pill ${e.status === 'Đang làm việc' ? 'pill-success' : 'pill-slate'}">${esc(e.status || "—")}</span></td>
               <td>${deviceCountOf(e.id)}</td>
-              <td><button class="btn btn-sm btn-ghost" onclick="app.openEmployeeForm('${e.id}')"><i class="ph ph-pencil-simple"></i></button></td>
+              <td onclick="event.stopPropagation();"><button class="btn btn-sm btn-ghost" onclick="app.openEmployeeForm('${e.id}')"><i class="ph ph-pencil-simple"></i></button></td>
             </tr>
           `).join("")}
         </table>
@@ -374,6 +378,93 @@ export function renderEmployees(filter) {
   }
   html += `</div>`;
   return html;
+}
+
+// ---------- Employee Detail ----------
+export function renderEmployeeDetail(id) {
+  const e = state.employees.find(x => x.id === id);
+  if (!e) return emptyState("Không tìm thấy nhân viên", "Nhân viên có thể đã bị xoá.");
+
+  // Thiết bị đang được nhân viên này nắm giữ
+  const currentDevices = state.devices.filter(d => d.holderId === e.id);
+
+  // Lịch sử liên quan đến nhân viên này (đã từng nhận/trả/điều chuyển) dựa vào tên xuất hiện trong lịch sử thiết bị
+  const relatedHistory = [];
+  state.devices.forEach(d => (d.history || []).forEach(h => {
+    if (h.to === e.name || h.from === e.name) {
+      relatedHistory.push({ ...h, deviceId: d.id, deviceType: d.type });
+    }
+  }));
+  relatedHistory.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  return `
+    <div style="margin-bottom:16px;">
+      <button class="btn btn-sm btn-ghost" onclick="app.setView('employees')"><i class="ph ph-arrow-left"></i> Quay lại danh sách</button>
+    </div>
+    <div class="detail-grid">
+      <div>
+        <div class="panel">
+          <div class="panel-head">
+            <h3><i class="ph ph-user"></i> ${esc(e.name)}</h3>
+            <button class="btn btn-sm btn-ghost" onclick="app.openEmployeeForm('${e.id}')"><i class="ph ph-pencil-simple"></i> Sửa</button>
+          </div>
+          <div class="kv"><b>Mã nhân viên</b><span style="font-family:var(--font-mono);">${esc(e.id)}</span></div>
+          <div class="kv"><b>Bộ phận</b><span>${esc(e.dept || "—")}</span></div>
+          <div class="kv"><b>Chức vụ</b><span>${esc(e.position || "—")}</span></div>
+          <div class="kv"><b>Email</b><span>${esc(e.email || "—")}</span></div>
+          <div class="kv"><b>Điện thoại</b><span>${esc(e.phone || "—")}</span></div>
+          <div class="kv"><b>Trạng thái</b><span class="pill ${e.status === 'Đang làm việc' ? 'pill-success' : 'pill-slate'}">${esc(e.status || "—")}</span></div>
+        </div>
+
+        ${relatedHistory.length > 0 ? `
+        <div class="panel">
+          <div class="panel-head"><h3><i class="ph ph-clock-counter-clockwise"></i> Lịch sử bàn giao / thu hồi liên quan</h3></div>
+          <div class="table-responsive">
+            <table class="data">
+              <tr><th>Ngày</th><th>Thiết bị</th><th>Sự kiện</th><th>Chi tiết</th></tr>
+              ${relatedHistory.slice(0, 30).map(h => `
+                <tr class="rowclick" onclick="app.setView('device','${h.deviceId}')">
+                  <td style="font-family: var(--font-mono); font-size: 12px;">${fmtDateTime(h.date)}</td>
+                  <td><div class="cell-title">${esc(h.deviceId)}</div><div class="cell-sub">${esc(h.deviceType || "")}</div></td>
+                  <td>${esc(h.label)}</td>
+                  <td class="cell-sub">${esc(h.to ? ("→ " + h.to) : (h.from ? ("từ " + h.from) : (h.note || "—")))}</td>
+                </tr>`).join("")}
+            </table>
+          </div>
+        </div>` : ""}
+      </div>
+
+      <div>
+        <div class="panel">
+          <div class="panel-head">
+            <h3><i class="ph ph-laptop"></i> Thiết bị đang sử dụng (${currentDevices.length})</h3>
+          </div>
+          ${currentDevices.length === 0 ? emptyState("Chưa giữ thiết bị nào", "Nhân viên này hiện không được giao thiết bị nào.") : `
+          <div class="table-responsive">
+            <table class="data">
+              <tr><th>Mã TB</th><th>Loại / Thương hiệu</th><th>Tình trạng</th><th>Trạng thái</th><th></th></tr>
+              ${currentDevices.map(d => `
+                <tr class="rowclick" onclick="app.setView('device','${d.id}')">
+                  <td><b style="color:#fff; font-family: var(--font-mono);">${esc(d.id)}</b></td>
+                  <td><div class="cell-title">${esc(d.type)}</div><div class="cell-sub">${esc(d.brand)}</div></td>
+                  <td>${esc(d.condition)}</td>
+                  <td><span class="pill ${STATUS_META[d.status]?.pill || 'pill-slate'}">${esc(d.status)}</span></td>
+                  <td onclick="event.stopPropagation();">
+                    <button class="btn btn-sm btn-ghost" onclick="app.printAssetLabel('${d.id}')" title="In tem (khổ A4)">
+                      <i class="ph ph-qr-code"></i>
+                    </button>
+                    <button class="btn btn-sm btn-ghost" onclick="app.printAssetLabelMini('${d.id}')" title="In tem nhỏ 20×20mm">
+                      <i class="ph ph-tag-simple"></i>
+                    </button>
+                  </td>
+                </tr>
+              `).join("")}
+            </table>
+          </div>`}
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 // ---------- Operations (Nghiệp vụ) ----------

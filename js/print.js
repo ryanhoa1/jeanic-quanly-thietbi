@@ -187,6 +187,7 @@ export function closeReceiptPreview() {
   const area = document.getElementById("print-area");
   area.classList.remove("preview-open");
   area.innerHTML = "";
+  removeMiniLabelPageStyle();
 }
 
 export function printReceiptNow() {
@@ -261,5 +262,62 @@ export function printAssetLabel(id) {
     }
   } catch (e) {
     console.error("Lỗi tạo mã vạch/QR:", e);
+  }
+}
+
+// Tem QR nhỏ dạng cuộn/khổ giấy 20x20mm — chỉ hiển thị mã QR + mã thiết bị, canh giữa trang in.
+// Dùng cho máy in tem nhãn (label printer) nạp giấy khổ 20x20mm.
+const MINI_LABEL_PAGE_STYLE_ID = "mini-label-page-style";
+
+function ensureMiniLabelPageStyle() {
+  if (document.getElementById(MINI_LABEL_PAGE_STYLE_ID)) return;
+  const style = document.createElement("style");
+  style.id = MINI_LABEL_PAGE_STYLE_ID;
+  style.textContent = `
+    @media print {
+      @page mini-label-page { size: 20mm 20mm; margin: 0; }
+      .label-mini-page { page: mini-label-page; }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+function removeMiniLabelPageStyle() {
+  const el = document.getElementById(MINI_LABEL_PAGE_STYLE_ID);
+  if (el) el.remove();
+}
+
+export function printAssetLabelMini(id) {
+  const d = state.devices.find(x => x.id === id);
+  if (!d) { toast("Không tìm thấy thiết bị", "err"); return; }
+
+  const lookupUrl = buildLookupUrl(d.id);
+  const area = document.getElementById("print-area");
+  area.dataset.pdfName = `tem-nho-${d.id}`;
+  area.innerHTML = `
+    <div class="print-toolbar">
+      <button class="btn btn-ghost" onclick="app.closeReceiptPreview()"><i class="ph ph-x"></i> Đóng</button>
+      <button class="btn btn-brand" onclick="app.printReceiptNow()"><i class="ph ph-printer"></i> In tem 20×20mm</button>
+      <button class="btn btn-brand" onclick="app.exportReceiptPDF()"><i class="ph ph-file-pdf"></i> Xuất PDF</button>
+    </div>
+    <div class="label-mini-wrap">
+      <div class="label-mini-page">
+        <div class="lmp-qr" id="qrcode-mini-${d.id}"></div>
+        <div class="lmp-id">${esc(d.id)}</div>
+      </div>
+    </div>
+  `;
+  ensurePaperVisible();
+  ensureMiniLabelPageStyle();
+
+  try {
+    if (window.QRCode) {
+      // QR chứa link tra cứu, kích thước render cao (300px) rồi co lại vừa khổ 20x20mm bằng CSS để nét khi in.
+      new window.QRCode(document.getElementById(`qrcode-mini-${d.id}`), {
+        text: lookupUrl, width: 300, height: 300, correctLevel: window.QRCode.CorrectLevel ? window.QRCode.CorrectLevel.M : undefined
+      });
+    }
+  } catch (e) {
+    console.error("Lỗi tạo mã QR (tem nhỏ):", e);
   }
 }

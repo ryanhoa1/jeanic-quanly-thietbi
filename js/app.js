@@ -7,7 +7,7 @@ import {
 import { loadAll, state, persistSettings, ASSET_CATEGORIES, getCategoryMeta } from './db.js';
 import {
   renderDashboard, renderDevices, renderDeviceDetail,
-  renderEmployees, renderOps, renderReports, renderHistoryTable, renderSettings, renderAccountsTable
+  renderEmployees, renderEmployeeDetail, renderOps, renderReports, renderHistoryTable, renderSettings, renderAccountsTable
 } from './views.js';
 import { toast, openModal, closeModal } from './ui.js';
 import {
@@ -18,7 +18,7 @@ import {
   openRepairForm, submitRepairForm
 } from './forms.js';
 import {
-  printAssetLabel, openReceiptPreview, closeReceiptPreview,
+  printAssetLabel, printAssetLabelMini, openReceiptPreview, closeReceiptPreview,
   printReceiptNow, exportReceiptPDF
 } from './print.js';
 import {
@@ -203,6 +203,10 @@ function setView(view, arg) {
   } else if (view === "employees") {
     actions.innerHTML = `<button class="btn btn-brand" onclick="app.openEmployeeForm()"><i class="ph ph-plus"></i> Thêm nhân viên</button>`;
     content.innerHTML = renderEmployees(employeeFilter);
+  } else if (view === "employee") {
+    document.getElementById("pageTitle").textContent = "Chi tiết nhân viên";
+    document.getElementById("pageDesc").textContent = "Thông tin nhân viên và thiết bị đang được giao.";
+    content.innerHTML = renderEmployeeDetail(arg);
   } else if (view === "ops") {
     content.innerHTML = renderOps();
   } else if (view === "reports") {
@@ -240,6 +244,7 @@ window.app.openDeviceForm = (id) => openDeviceForm(id, refreshCurrentView);
 window.app.submitDeviceForm = (id) => submitDeviceForm(id);
 window.app.updateDeviceFormAttrs = () => updateDeviceFormAttrs();
 window.app.printAssetLabel = (id) => printAssetLabel(id);
+window.app.printAssetLabelMini = (id) => printAssetLabelMini(id);
 window.app.closeReceiptPreview = () => closeReceiptPreview();
 window.app.printReceiptNow = () => printReceiptNow();
 window.app.exportReceiptPDF = () => exportReceiptPDF();

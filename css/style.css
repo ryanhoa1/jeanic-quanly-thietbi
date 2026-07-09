@@ -421,6 +421,44 @@ table.data tr.rowclick:hover td { background: rgba(255,255,255,0.02); }
 .label-card .lc-codes { display: flex; align-items: center; justify-content: center; gap: 10mm; margin-top: 10px; }
 .label-card .lc-scan-hint { font-size: 9.5px; color: #555; margin-top: 6px; }
 
+/* Tem QR nhỏ 20x20mm (chỉ mã QR + mã thiết bị, canh giữa trang in) */
+.label-mini-wrap { display: flex; align-items: center; justify-content: center; }
+.label-mini-page {
+  width: 20mm;
+  height: 20mm;
+  margin: 0 auto;
+  background: #fff;
+  color: #000;
+  box-sizing: border-box;
+  padding: 1mm;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  break-inside: avoid;
+}
+.label-mini-page .lmp-qr { width: 15mm; height: 15mm; line-height: 0; }
+.label-mini-page .lmp-qr img,
+.label-mini-page .lmp-qr canvas { width: 100% !important; height: 100% !important; display: block; }
+.label-mini-page .lmp-id {
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  font-size: 2.6mm;
+  line-height: 1.1;
+  margin-top: 0.8mm;
+  text-align: center;
+  white-space: nowrap;
+}
+/* Trên màn hình, phóng to tem 20x20mm để dễ xem trước (không ảnh hưởng khi in thật) */
+@media screen {
+  .label-mini-wrap { padding: 60px 0; }
+  .label-mini-page { transform: scale(6); }
+}
+@media print {
+  .label-mini-page { page-break-after: always; }
+  .label-mini-wrap { display: block; }
+}
+
 /* Bảng thiết bị trong biên bản (xem trước trên màn hình, ngoài @media print) */
 table.bb-table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 13.5px; }
 table.bb-table th, table.bb-table td { border: 1px solid #333; padding: 6px 8px; text-align: left; }
