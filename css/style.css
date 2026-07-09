@@ -417,7 +417,25 @@ table.data tr.rowclick:hover td { background: rgba(255,255,255,0.02); }
 .label-card { border: 1px solid #000; border-radius: 4mm; padding: 5mm; display: flex; flex-direction: column; align-items: center; text-align: center; break-inside: avoid; }
 .label-card .lc-id { font-family: monospace; font-size: 18px; font-weight: bold; margin: 4px 0; }
 .label-card .lc-name { font-size: 13px; font-weight: bold; margin-bottom: 4px; }
+.label-card .lc-holder { font-size: 11px; color: #333; margin-bottom: 2px; }
 .label-card .lc-codes { display: flex; align-items: center; justify-content: center; gap: 10mm; margin-top: 10px; }
+.label-card .lc-scan-hint { font-size: 9.5px; color: #555; margin-top: 6px; }
+
+/* Bảng thiết bị trong biên bản (xem trước trên màn hình, ngoài @media print) */
+table.bb-table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 13.5px; }
+table.bb-table th, table.bb-table td { border: 1px solid #333; padding: 6px 8px; text-align: left; }
+table.bb-table th { background: #eee; }
+
+/* Device multi-select checklist (Ops form: bàn giao/thu hồi/điều chuyển nhiều thiết bị) */
+.device-checklist-toolbar { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; flex-wrap: wrap; }
+.select-all-chk { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary); white-space: nowrap; cursor: pointer; }
+.device-checklist { max-height: 280px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: rgba(0,0,0,0.15); }
+.device-check-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-bottom: 1px solid var(--border-light); cursor: pointer; transition: background 0.15s; }
+.device-check-row:last-child { border-bottom: none; }
+.device-check-row:hover { background: var(--bg-surface-hover); }
+.device-check-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--brand-primary); flex-shrink: 0; }
+.device-check-info { flex: 1; min-width: 0; }
+.device-check-row .op-device-condition { width: auto; max-width: 150px; padding: 6px 8px; font-size: 12.5px; }
 
 .thermal-page { box-sizing: border-box; margin: 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; font-family: monospace; overflow: hidden; page-break-after: always; background: #fff; color: #000; }
 .thermal-page.last { page-break-after: auto; }

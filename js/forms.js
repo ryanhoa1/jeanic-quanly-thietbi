@@ -252,6 +252,8 @@ export async function submitEmployeeForm(id) {
 }
 
 // ---------- Operations Form (handover / return / transfer / retire) ----------
+// Hỗ trợ chọn NHIỀU thiết bị cùng lúc cho 1 người (VD: bàn giao laptop + màn hình +
+// combo bàn phím chuột trong 1 lần thao tác, in ra 1 biên bản duy nhất liệt kê đủ thiết bị).
 const OPS_META = {
   handover: { title: "Bàn giao thiết bị", verb: "Bàn giao" },
   return: { title: "Thu hồi thiết bị", verb: "Thu hồi" },
@@ -259,60 +261,135 @@ const OPS_META = {
   retire: { title: "Thanh lý thiết bị", verb: "Thanh lý" }
 };
 
+function opsDeviceOptions(type, holderId) {
+  let list;
+  if (type === "handover") {
+    list = state.devices.filter(d => d.status === "Trong kho");
+  } else if (type === "return" || type === "transfer") {
+    list = state.devices.filter(d => d.status === "Đang sử dụng");
+    if (holderId) list = list.filter(d => d.holderId === holderId);
+  } else {
+    list = state.devices.filter(d => d.status !== "Thanh lý");
+  }
+  return list;
+}
+
+function deviceChecklistRowHTML(d, withCondition) {
+  const searchKey = `${d.id} ${d.type} ${d.brand} ${d.holderName || ""}`.toLowerCase();
+  return `
+    <label class="device-check-row" data-search="${esc(searchKey)}">
+      <input type="checkbox" class="op-device-chk" value="${esc(d.id)}">
+      <div class="device-check-info">
+        <div class="cell-title">${esc(d.id)} — ${esc(d.type)}</div>
+        <div class="cell-sub">${esc(d.brand)}${d.holderName ? " · " + esc(d.holderName) : ""}${d.dept ? " · " + esc(d.dept) : ""}</div>
+      </div>
+      ${withCondition ? `
+        <select class="op-device-condition" data-device-id="${esc(d.id)}" onclick="event.stopPropagation()">
+          ${opt(CONDITIONS, d.condition || "Tốt")}
+        </select>` : ""}
+    </label>
+  `;
+}
+
+function deviceChecklistHTML(list, withCondition) {
+  if (list.length === 0) {
+    return `<div class="attrs-empty">Không có thiết bị phù hợp.</div>`;
+  }
+  return `
+    <div class="device-checklist-toolbar">
+      <div class="input-wrap" style="flex:1;">
+        <i class="ph ph-magnifying-glass"></i>
+        <input type="search" placeholder="Tìm theo mã TB, loại, thương hiệu…" oninput="app.filterOpsDeviceList(this.value)">
+      </div>
+      <label class="select-all-chk">
+        <input type="checkbox" onchange="app.toggleAllOpsDevices(this.checked)"> Chọn tất cả
+      </label>
+    </div>
+    <div class="device-checklist">
+      ${list.map(d => deviceChecklistRowHTML(d, withCondition)).join("")}
+    </div>
+  `;
+}
+
+// Dựng lại danh sách checklist khi người dùng đổi nhân viên nguồn (thu hồi/điều chuyển)
+export function refreshOpsDeviceChecklist(type) {
+  const holderSel = document.getElementById("opSourceEmployee");
+  const holderId = holderSel ? holderSel.value : null;
+  const list = opsDeviceOptions(type, holderId || null);
+  const wrap = document.getElementById("opsDeviceListWrap");
+  if (wrap) wrap.innerHTML = deviceChecklistHTML(list, type !== "retire");
+}
+
+export function filterOpsDeviceList(q) {
+  q = (q || "").toLowerCase();
+  document.querySelectorAll("#opsDeviceListWrap .device-check-row").forEach(row => {
+    const hay = row.dataset.search || "";
+    row.style.display = hay.includes(q) ? "" : "none";
+  });
+}
+
+export function toggleAllOpsDevices(checked) {
+  document.querySelectorAll('#opsDeviceListWrap .device-check-row').forEach(row => {
+    if (row.style.display === "none") return;
+    const cb = row.querySelector(".op-device-chk");
+    if (cb) cb.checked = checked;
+  });
+}
+
 export function openOpsForm(type, refresh) {
   const meta = OPS_META[type];
   if (!meta) return;
 
-  let deviceOptions;
-  if (type === "handover") {
-    deviceOptions = state.devices.filter(d => d.status === "Trong kho");
-  } else if (type === "return" || type === "transfer") {
-    deviceOptions = state.devices.filter(d => d.status === "Đang sử dụng");
-  } else {
-    deviceOptions = state.devices.filter(d => d.status !== "Thanh lý");
-  }
-
-  if (deviceOptions.length === 0) {
-    toast("Không có thiết bị phù hợp cho nghiệp vụ này", "err");
-    return;
-  }
-
   const activeEmployees = state.employees.filter(e => e.status !== "Đã nghỉ việc");
+  const holdersWithDevices = (type === "return" || type === "transfer")
+    ? activeEmployees.filter(e => state.devices.some(d => d.holderId === e.id && d.status === "Đang sử dụng"))
+    : activeEmployees;
 
-  const deviceSelect = `
-    <div class="field">
-      <label>Thiết bị</label>
-      <select id="opDevice">
-        ${deviceOptions.map(d => `<option value="${d.id}">${esc(d.id)} — ${esc(d.type)} (${esc(d.holderName || "Trong kho")})</option>`).join("")}
-      </select>
-    </div>
-  `;
-
-  const employeeSelect = (label, elId) => `
+  const employeeSelect = (label, elId, list, extraAttrs) => `
     <div class="field">
       <label>${label}</label>
-      <select id="${elId}">
-        ${activeEmployees.map(e => `<option value="${e.id}">${esc(e.id)} — ${esc(e.name)} (${esc(e.dept || "")})</option>`).join("")}
+      <select id="${elId}" ${extraAttrs || ""}>
+        ${list.map(e => `<option value="${e.id}">${esc(e.id)} — ${esc(e.name)} (${esc(e.dept || "")})</option>`).join("")}
       </select>
     </div>
   `;
 
-  let body = deviceSelect;
-  if (type === "handover") body += employeeSelect("Bàn giao cho nhân viên", "opEmployee");
-  if (type === "transfer") body += employeeSelect("Chuyển đến nhân viên", "opEmployee");
+  let body = "";
 
-  if (type !== "retire") {
-    body += `
-      <div class="field">
-        <label>Tình trạng thiết bị</label>
-        <select id="opCondition">${opt(CONDITIONS, "Tốt")}</select>
-      </div>
-    `;
+  if (type === "handover") {
+    body += employeeSelect("Bàn giao cho nhân viên", "opEmployee", activeEmployees);
+  } else if (type === "return" || type === "transfer") {
+    if (holdersWithDevices.length === 0) {
+      toast("Không có nhân viên nào đang giữ thiết bị để thực hiện nghiệp vụ này", "err");
+      return;
+    }
+    body += employeeSelect(
+      type === "return" ? "Thu hồi từ nhân viên" : "Điều chuyển từ nhân viên (bên giao)",
+      "opSourceEmployee", holdersWithDevices, `onchange="app.refreshOpsDeviceChecklist('${type}')"`
+    );
+  }
+
+  const initialHolderId = (type === "return" || type === "transfer") ? holdersWithDevices[0]?.id : null;
+  const initialList = opsDeviceOptions(type, initialHolderId);
+
+  if ((type === "return" || type === "transfer") && initialList.length === 0) {
+    toast("Nhân viên này hiện không có thiết bị đang sử dụng", "err");
   }
 
   body += `
     <div class="field">
-      <label>Ghi chú</label>
+      <label>Thiết bị (có thể chọn nhiều — VD: laptop + màn hình + combo bàn phím chuột)</label>
+      <div id="opsDeviceListWrap">${deviceChecklistHTML(initialList, type !== "retire")}</div>
+    </div>
+  `;
+
+  if (type === "transfer") {
+    body += employeeSelect("Chuyển đến nhân viên (bên nhận)", "opEmployee", activeEmployees);
+  }
+
+  body += `
+    <div class="field">
+      <label>Ghi chú chung (áp dụng cho toàn bộ thiết bị đã chọn)</label>
       <textarea id="opNote" placeholder="Ghi chú thêm (không bắt buộc)"></textarea>
     </div>
   `;
@@ -326,53 +403,77 @@ export function openOpsForm(type, refresh) {
   window.__opsFormRefresh = refresh;
 }
 
+function getSelectedOpsDevices() {
+  const boxes = Array.from(document.querySelectorAll("#opsDeviceListWrap .op-device-chk:checked"));
+  return boxes.map(cb => {
+    const condSel = document.querySelector(`#opsDeviceListWrap .op-device-condition[data-device-id="${CSS.escape(cb.value)}"]`);
+    return { id: cb.value, condition: condSel ? condSel.value : null };
+  });
+}
+
 export async function submitOpsForm(type) {
-  const deviceId = document.getElementById("opDevice").value;
+  const selected = getSelectedOpsDevices();
+  if (selected.length === 0) { toast("Vui lòng chọn ít nhất 1 thiết bị", "err"); return; }
+
   const note = document.getElementById("opNote").value.trim();
   const byEmail = currentUser?.email;
 
-  const deviceBefore = state.devices.find(x => x.id === deviceId);
-  if (!deviceBefore) { toast("Không tìm thấy thiết bị", "err"); return; }
-
-  let result = null;
-  let from = null, to = null, condition = null;
-
-  if (type === "handover") {
-    const empId = document.getElementById("opEmployee").value;
-    const emp = state.employees.find(x => x.id === empId);
-    condition = document.getElementById("opCondition").value;
-    result = handoverDevice(deviceId, empId, condition, note, byEmail);
-    to = emp ? { name: emp.name, dept: emp.dept, position: emp.position } : null;
-  } else if (type === "return") {
-    const fromEmp = state.employees.find(x => x.id === deviceBefore.holderId);
-    condition = document.getElementById("opCondition").value;
-    from = deviceBefore.holderName ? { name: deviceBefore.holderName, dept: deviceBefore.dept, position: fromEmp?.position } : null;
-    result = returnDevice(deviceId, condition, note, byEmail);
-  } else if (type === "transfer") {
-    const empId = document.getElementById("opEmployee").value;
-    const fromEmp = state.employees.find(x => x.id === deviceBefore.holderId);
-    const toEmp = state.employees.find(x => x.id === empId);
-    condition = document.getElementById("opCondition").value;
-    from = deviceBefore.holderName ? { name: deviceBefore.holderName, dept: deviceBefore.dept, position: fromEmp?.position } : null;
-    to = toEmp ? { name: toEmp.name, dept: toEmp.dept, position: toEmp.position } : null;
-    result = transferDevice(deviceId, empId, condition, note, byEmail);
-  } else if (type === "retire") {
-    from = deviceBefore.holderName ? { name: deviceBefore.holderName, dept: deviceBefore.dept } : null;
-    result = retireDevice(deviceId, note, byEmail);
+  let empId = null, emp = null;
+  if (type === "handover" || type === "transfer") {
+    empId = document.getElementById("opEmployee").value;
+    emp = state.employees.find(x => x.id === empId);
+    if (!emp) { toast("Không tìm thấy nhân viên", "err"); return; }
   }
 
-  if (!result) { toast("Có lỗi xảy ra, vui lòng thử lại", "err"); return; }
+  const opType = { handover: "ban_giao", return: "thu_hoi", transfer: "dieu_chuyen", retire: "thanh_ly" }[type];
+  const receiptDevices = [];
+  let from = null, to = null;
+  let okCount = 0;
+
+  for (const sel of selected) {
+    const deviceBefore = state.devices.find(x => x.id === sel.id);
+    if (!deviceBefore) continue;
+
+    let result = null;
+    let devFrom = null, devTo = null;
+
+    if (type === "handover") {
+      result = handoverDevice(sel.id, empId, sel.condition, note, byEmail);
+      devTo = { name: emp.name, dept: emp.dept, position: emp.position };
+      to = devTo;
+    } else if (type === "return") {
+      const fromEmp = state.employees.find(x => x.id === deviceBefore.holderId);
+      devFrom = deviceBefore.holderName ? { name: deviceBefore.holderName, dept: deviceBefore.dept, position: fromEmp?.position } : null;
+      result = returnDevice(sel.id, sel.condition, note, byEmail);
+      from = devFrom;
+    } else if (type === "transfer") {
+      const fromEmp = state.employees.find(x => x.id === deviceBefore.holderId);
+      devFrom = deviceBefore.holderName ? { name: deviceBefore.holderName, dept: deviceBefore.dept, position: fromEmp?.position } : null;
+      devTo = { name: emp.name, dept: emp.dept, position: emp.position };
+      result = transferDevice(sel.id, empId, sel.condition, note, byEmail);
+      from = devFrom; to = devTo;
+    } else if (type === "retire") {
+      devFrom = deviceBefore.holderName ? { name: deviceBefore.holderName, dept: deviceBefore.dept } : null;
+      result = retireDevice(sel.id, note, byEmail);
+      from = devFrom;
+    }
+
+    if (!result) continue;
+    okCount++;
+    receiptDevices.push({ device: result, condition: sel.condition });
+    await saveGlobalLog(opType, sel.id, result.history[0], null, byEmail);
+  }
+
+  if (okCount === 0) { toast("Có lỗi xảy ra, vui lòng thử lại", "err"); return; }
 
   await persistDevices();
-  const opType = { handover: "ban_giao", return: "thu_hoi", transfer: "dieu_chuyen", retire: "thanh_ly" }[type];
-  await saveGlobalLog(opType, deviceId, result.history[0], null, byEmail);
 
-  toast(`${OPS_META[type].verb} thành công — ${deviceId}`);
+  toast(`${OPS_META[type].verb} thành công — ${okCount} thiết bị`);
   closeModal();
   if (window.__opsFormRefresh) window.__opsFormRefresh();
 
   if (type !== "retire") {
-    openReceiptPreview({ type, device: result, from, to, condition, note, date: new Date().toISOString(), byEmail });
+    openReceiptPreview({ type, devices: receiptDevices, from, to, note, date: new Date().toISOString(), byEmail });
   }
 }
 

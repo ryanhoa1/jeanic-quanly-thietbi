@@ -2,14 +2,14 @@ import { db, useFirebase } from './firebase-config.js';
 
 export const DEPARTMENTS = ["Ban Giám đốc","IT","Nhân sự (HR)","Kế toán","Kinh doanh","Plan (Kế hoạch)","Cắt (Cutting)","May (Sewing)","Hoàn thiện (Finishing)","QA/QC","Kho (Warehouse)","Bảo trì (Maintenance)","Xuất nhập khẩu","Khác"];
 export const CONDITIONS = ["Mới","Tốt","Khá","Trung bình","Hỏng nhẹ","Hỏng nặng"];
-export const DEVICE_TYPES = ["Desktop","Laptop","Laptop + Sạc","Màn hình","Bàn phím","Chuột không dây","Chuột có dây","Tai nghe","Webcam","Camera","Máy in","Router/Switch","Điện thoại","Mực in/Hộp mực","USB/Ổ cứng di động","Balo/Túi laptop","Sạc/Cáp","Khác"];
+export const DEVICE_TYPES = ["Desktop","Laptop","Laptop + Sạc","Màn hình","Bàn phím","Chuột không dây","Chuột có dây","Combo Bàn phím + Chuột","Tai nghe","Webcam","Camera","Máy in","Router/Switch","Điện thoại","Mực in/Hộp mực","USB/Ổ cứng di động","Balo/Túi laptop","Sạc/Cáp","Khác"];
 export const BRANDS = ["Dell","HP","Lenovo","Asus","Acer","Apple","Logitech","EBLUE","Samsung","LG","Canon","TP-Link","HIKVision","Kingston","Xiaomi","Khác"];
 
 // ---------- Asset Categories (GLPI-style grouping) ----------
 export const ASSET_CATEGORIES = [
   { id: "computers", label: "Máy tính (Desktop/Laptop)", ico: "ph-desktop-tower", types: ["Desktop", "Laptop", "Laptop + Sạc"] },
   { id: "monitors", label: "Màn hình", ico: "ph-monitor", types: ["Màn hình"] },
-  { id: "peripherals", label: "Thiết bị ngoại vi", ico: "ph-mouse", types: ["Bàn phím", "Chuột không dây", "Chuột có dây", "Tai nghe", "Webcam", "Camera"] },
+  { id: "peripherals", label: "Thiết bị ngoại vi", ico: "ph-mouse", types: ["Bàn phím", "Chuột không dây", "Chuột có dây", "Combo Bàn phím + Chuột", "Tai nghe", "Webcam", "Camera"] },
   { id: "printers", label: "Máy in", ico: "ph-printer", types: ["Máy in"] },
   { id: "network", label: "Thiết bị mạng", ico: "ph-network", types: ["Router/Switch"] },
   { id: "phones", label: "Điện thoại", ico: "ph-device-mobile", types: ["Điện thoại"] },
@@ -131,7 +131,55 @@ export const Store = {
   }
 };
 
-export async function persistDevices() { await Store.set("devices", JSON.stringify(state.devices)); }
+// ---------- Public QR Lookup Sync ----------
+// Khi quét mã QR trên tem thiết bị, người quét (có thể không đăng nhập) sẽ được
+// đưa tới trang lookup.html?id=TBxxx. Trang đó CHỈ đọc dữ liệu tối thiểu, an toàn
+// từ collection "jeanic_public_devices" (không chứa toàn bộ dữ liệu công ty).
+// Collection này được ghi đè tự động mỗi khi state.devices thay đổi và được lưu (persistDevices()).
+// => Cần cấu hình Firestore Security Rules cho phép đọc công khai nhưng chỉ cho phép
+//    ghi khi đã đăng nhập, ví dụ:
+//    match /jeanic_public_devices/{deviceId} {
+//      allow read: if true;
+//      allow write: if request.auth != null;
+//    }
+export const PUBLIC_LOOKUP_COLLECTION = "jeanic_public_devices";
+
+function buildPublicLookupPayload(d) {
+  return {
+    id: d.id,
+    type: d.type || "",
+    brand: d.brand || "",
+    specs: d.specs || "",
+    condition: d.condition || "",
+    status: d.status || "",
+    holderName: d.holderName || null,
+    holderDept: d.dept || null,
+    updatedAt: new Date().toISOString()
+  };
+}
+
+async function syncPublicLookup() {
+  if (Store.mode !== "cloud" || !db) return;
+  const CHUNK = 400; // giới hạn an toàn cho 1 batch Firestore (tối đa 500 thao tác)
+  try {
+    for (let i = 0; i < state.devices.length; i += CHUNK) {
+      const chunk = state.devices.slice(i, i + CHUNK);
+      const batch = db.batch();
+      chunk.forEach(d => {
+        const ref = db.collection(PUBLIC_LOOKUP_COLLECTION).doc(d.id);
+        batch.set(ref, buildPublicLookupPayload(d));
+      });
+      await batch.commit();
+    }
+  } catch (e) {
+    console.error("Lỗi đồng bộ dữ liệu tra cứu công khai (QR):", e);
+  }
+}
+
+export async function persistDevices() {
+  await Store.set("devices", JSON.stringify(state.devices));
+  await syncPublicLookup();
+}
 export async function persistEmployees() { await Store.set("employees", JSON.stringify(state.employees)); }
 export async function persistMeta() { await Store.set("meta", JSON.stringify(state.meta)); }
 export async function persistSettings() { await Store.set("settings", JSON.stringify(state.settings)); }

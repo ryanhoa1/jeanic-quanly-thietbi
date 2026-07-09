@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tra cứu thiết bị · JEANIC IT</title>
+  <link rel="icon" type="image/jpeg" href="assets/logo.jpg">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+  <!-- Trang này không yêu cầu đăng nhập; nạp đủ 3 SDK để tái sử dụng chung
+       js/firebase-config.js với phần còn lại của ứng dụng (tránh trùng cấu hình). -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <style>
+    :root {
+      --bg-main: #0B0E14; --bg-surface: #151A23; --bg-surface-hover: #1C222D;
+      --text-primary: #F3F4F6; --text-secondary: #9CA3AF; --text-muted: #6B7280;
+      --border-color: rgba(255,255,255,0.08);
+      --brand-primary: #3B82F6; --brand-primary-glass: rgba(59,130,246,0.15);
+      --accent-success: #10B981; --accent-success-glass: rgba(16,185,129,0.15);
+      --accent-warning: #F59E0B; --accent-warning-glass: rgba(245,158,11,0.15);
+      --accent-danger: #EF4444; --accent-danger-glass: rgba(239,68,68,0.15);
+      --radius-md: 12px; --radius-lg: 16px;
+      --font-display: 'Space Grotesk', sans-serif; --font-body: 'Inter', sans-serif; --font-mono: 'IBM Plex Mono', monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; background: var(--bg-main); color: var(--text-primary);
+      font-family: var(--font-body); display: flex; align-items: flex-start; justify-content: center;
+      padding: 32px 16px;
+    }
+    .wrap { width: 100%; max-width: 460px; }
+    .brand-row { display: flex; align-items: center; gap: 10px; justify-content: center; margin-bottom: 20px; }
+    .brand-row img { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; }
+    .brand-row b { font-family: var(--font-display); letter-spacing: -0.02em; }
+    .card { background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 24px; }
+    .card h2 { font-family: var(--font-display); margin: 0 0 4px; font-size: 20px; }
+    .card .sub { color: var(--text-secondary); font-size: 13px; margin-bottom: 20px; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600; }
+    .pill-success { background: var(--accent-success-glass); color: var(--accent-success); }
+    .pill-brand { background: var(--brand-primary-glass); color: var(--brand-primary); }
+    .pill-warning { background: var(--accent-warning-glass); color: var(--accent-warning); }
+    .pill-danger { background: var(--accent-danger-glass); color: var(--accent-danger); }
+    .kv { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 14px; }
+    .kv:last-child { border-bottom: none; }
+    .kv b { color: var(--text-secondary); font-weight: 500; }
+    .kv span { text-align: right; }
+    .holder-box { margin-top: 16px; padding: 16px; border-radius: var(--radius-md); background: var(--brand-primary-glass); border: 1px solid rgba(59,130,246,0.25); }
+    .holder-box .lbl { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+    .holder-box .name { font-family: var(--font-display); font-size: 18px; font-weight: 600; }
+    .holder-box .dept { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+    .state-box { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
+    .state-box i { font-size: 36px; color: var(--text-muted); margin-bottom: 12px; display: block; }
+    .foot-note { text-align: center; font-size: 12px; color: var(--text-muted); margin-top: 18px; line-height: 1.6; }
+    .mono { font-family: var(--font-mono); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand-row">
+      <img src="assets/logo.jpg" alt="Jeanic Garment">
+      <b>JEANIC IT — Tra cứu thiết bị</b>
+    </div>
+    <div class="card" id="lookupCard">
+      <div class="state-box" id="stateBox">
+        <i class="ph ph-circle-notch"></i>
+        Đang tải thông tin thiết bị…
+      </div>
+    </div>
+    <div class="foot-note">
+      Trang tra cứu công khai — chỉ hiển thị mã thiết bị, loại, tình trạng và người/đơn vị đang quản lý.<br>
+      Có sai lệch, vui lòng liên hệ Phòng Công nghệ thông tin.
+    </div>
+  </div>
+
+  <script type="module" src="js/lookup.js"></script>
+</body>
+</html>

@@ -14,6 +14,7 @@ import {
   openDeviceForm, submitDeviceForm, updateDeviceFormAttrs,
   openEmployeeForm, submitEmployeeForm,
   openOpsForm, submitOpsForm,
+  refreshOpsDeviceChecklist, filterOpsDeviceList, toggleAllOpsDevices,
   openRepairForm, submitRepairForm
 } from './forms.js';
 import {
@@ -252,7 +253,7 @@ window.app.reprintHistoryReceipt = (deviceId, idx) => {
   if (!type) { toast("Không thể tạo biên bản cho sự kiện này", "err"); return; }
   const from = h.from ? { name: h.from } : null;
   const to = h.to ? { name: h.to, dept: h.dept } : null;
-  openReceiptPreview({ type, device: d, from, to, condition: h.condition, note: h.note, date: h.date, byEmail: h.by });
+  openReceiptPreview({ type, devices: [{ device: d, condition: h.condition }], from, to, note: h.note, date: h.date, byEmail: h.by });
 };
 
 // --- Reports / Exports ---
@@ -271,6 +272,9 @@ window.app.submitEmployeeForm = (id) => submitEmployeeForm(id);
 // --- Operations ---
 window.app.openOpsForm = (type) => openOpsForm(type, refreshCurrentView);
 window.app.submitOpsForm = (type) => submitOpsForm(type);
+window.app.refreshOpsDeviceChecklist = (type) => refreshOpsDeviceChecklist(type);
+window.app.filterOpsDeviceList = (q) => filterOpsDeviceList(q);
+window.app.toggleAllOpsDevices = (checked) => toggleAllOpsDevices(checked);
 
 // --- Settings ---
 window.app.saveSettings = async () => {

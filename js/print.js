@@ -73,13 +73,18 @@ function terminationNoteHTML() {
   `;
 }
 
-// payload = { type, device, from: {name,dept,position}|null, to: {...}|null, condition, note, date, byEmail }
+// payload = { type, devices: [{device, condition}], from: {name,dept,position}|null, to: {...}|null, note, date, byEmail }
+// (Tương thích ngược: payload.device + payload.condition đơn lẻ vẫn được chấp nhận.)
 export function buildReceiptHTML(payload) {
-  const { type, device, from, to, condition, note, date, byEmail } = payload;
+  const { type, from, to, note, date, byEmail } = payload;
+  const devicesList = payload.devices && payload.devices.length
+    ? payload.devices
+    : (payload.device ? [{ device: payload.device, condition: payload.condition }] : []);
   const typeLabel = TYPE_LABEL[type] || "BIÊN BẢN";
   const s = state.settings || {};
   const deptFallback = s.companyDept || "Phòng Công nghệ thông tin";
-  const refCode = `${(type || "bb").toUpperCase()}-${esc(device.id)}-${new Date(date || Date.now()).getTime().toString().slice(-6)}`;
+  const firstId = devicesList[0]?.device?.id || "TB";
+  const refCode = `${(type || "bb").toUpperCase()}-${esc(firstId)}${devicesList.length > 1 ? `-va-${devicesList.length - 1}-TB-khac` : ""}-${new Date(date || Date.now()).getTime().toString().slice(-6)}`;
 
   let partyATitle, partyAPerson, partyBTitle, partyBPerson;
   if (type === "handover") {
@@ -110,11 +115,19 @@ export function buildReceiptHTML(payload) {
       </div>
 
       <div class="bb-block">
-        <h4>I. THÔNG TIN THIẾT BỊ</h4>
-        <div class="bb-row"><b>Mã thiết bị:</b> ${esc(device.id)}</div>
-        <div class="bb-row"><b>Loại / Thương hiệu:</b> ${esc(device.type)} — ${esc(device.brand)}</div>
-        ${device.specs ? `<div class="bb-row"><b>Thông số:</b> ${esc(device.specs)}</div>` : ""}
-        <div class="bb-row"><b>Tình trạng bàn giao:</b> ${esc(condition || device.condition)}</div>
+        <h4>I. THÔNG TIN THIẾT BỊ (${devicesList.length} thiết bị)</h4>
+        <table class="bb-table">
+          <tr><th>STT</th><th>Mã TB</th><th>Loại / Thương hiệu</th><th>Thông số</th><th>Tình trạng</th></tr>
+          ${devicesList.map((item, i) => `
+            <tr>
+              <td>${i + 1}</td>
+              <td>${esc(item.device.id)}</td>
+              <td>${esc(item.device.type)} — ${esc(item.device.brand)}</td>
+              <td>${esc(item.device.specs || "—")}</td>
+              <td>${esc(item.condition || item.device.condition)}</td>
+            </tr>
+          `).join("")}
+        </table>
       </div>
 
       <div class="bb-block">
@@ -155,7 +168,9 @@ function ensurePaperVisible() {
 export function openReceiptPreview(payload) {
   const area = document.getElementById("print-area");
   const html = buildReceiptHTML(payload);
-  const filenameHint = `${payload.type || "bien-ban"}-${payload.device?.id || ""}`;
+  const list = payload.devices && payload.devices.length ? payload.devices : (payload.device ? [{ device: payload.device }] : []);
+  const firstId = list[0]?.device?.id || "";
+  const filenameHint = `${payload.type || "bien-ban"}-${firstId}${list.length > 1 ? `-va-${list.length - 1}-TB-khac` : ""}`;
   area.dataset.pdfName = filenameHint;
   area.innerHTML = `
     <div class="print-toolbar">
@@ -192,10 +207,23 @@ export function exportReceiptPDF() {
   }).from(paper).save();
 }
 
+// Trang tra cứu công khai (không cần đăng nhập) — hiển thị ai đang quản lý thiết bị.
+// Xem lookup.html + js/lookup.js. Cần bật chế độ Cloud (Firebase) để hoạt động khi
+// quét từ điện thoại/máy khác; ở chế độ Local, link chỉ hiển thị được nếu mở trên
+// đúng trình duyệt đã lưu dữ liệu.
+export function buildLookupUrl(deviceId) {
+  try {
+    return new URL(`lookup.html?id=${encodeURIComponent(deviceId)}`, window.location.href).toString();
+  } catch (e) {
+    return `lookup.html?id=${encodeURIComponent(deviceId)}`;
+  }
+}
+
 export function printAssetLabel(id) {
   const d = state.devices.find(x => x.id === id);
   if (!d) { toast("Không tìm thấy thiết bị", "err"); return; }
 
+  const lookupUrl = buildLookupUrl(d.id);
   const area = document.getElementById("print-area");
   area.dataset.pdfName = `tem-${d.id}`;
   area.innerHTML = `
@@ -210,10 +238,12 @@ export function printAssetLabel(id) {
         <div class="label-card">
           <div class="lc-id">${esc(d.id)}</div>
           <div class="lc-name">${esc(d.type)} — ${esc(d.brand)}</div>
+          <div class="lc-holder">${d.holderName ? `Người quản lý: ${esc(d.holderName)}${d.dept ? " — " + esc(d.dept) : ""}` : "Đang trong kho — Phòng CNTT quản lý"}</div>
           <div class="lc-codes">
             <svg id="barcode-${d.id}"></svg>
             <div id="qrcode-${d.id}"></div>
           </div>
+          <div class="lc-scan-hint">Quét mã QR để xem thông tin &amp; người quản lý hiện tại</div>
         </div>
       </div>
     </div>
@@ -225,7 +255,9 @@ export function printAssetLabel(id) {
       window.JsBarcode(`#barcode-${d.id}`, d.id, { format: "CODE128", width: 2, height: 40, fontSize: 12, margin: 4 });
     }
     if (window.QRCode) {
-      new window.QRCode(document.getElementById(`qrcode-${d.id}`), { text: d.id, width: 90, height: 90 });
+      // QR chứa LINK tới trang tra cứu công khai (không phải chỉ mã thiết bị),
+      // để khi quét bằng điện thoại sẽ mở thẳng trang web hiển thị ai đang quản lý.
+      new window.QRCode(document.getElementById(`qrcode-${d.id}`), { text: lookupUrl, width: 90, height: 90 });
     }
   } catch (e) {
     console.error("Lỗi tạo mã vạch/QR:", e);
