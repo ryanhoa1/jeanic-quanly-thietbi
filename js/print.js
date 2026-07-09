@@ -9,18 +9,6 @@ const TYPE_LABEL = {
   retire: "BIÊN BẢN THANH LÝ THIẾT BỊ"
 };
 
-function partyBlock(title, person) {
-  if (!person) return "";
-  return `
-    <div class="bb-block">
-      <h4>${esc(title)}</h4>
-      <div class="bb-row"><b>Họ tên:</b> ${esc(person.name || "—")}</div>
-      ${person.dept ? `<div class="bb-row"><b>Bộ phận:</b> ${esc(person.dept)}</div>` : ""}
-      ${person.position ? `<div class="bb-row"><b>Chức vụ:</b> ${esc(person.position)}</div>` : ""}
-    </div>
-  `;
-}
-
 function signBlock(label) {
   return `<div><div class="cap">${esc(label)}</div><div class="sub">(Ký, ghi rõ họ tên)</div></div>`;
 }
@@ -32,40 +20,122 @@ function signatureRow(type) {
   return `${signBlock("Người lập biên bản (IT)")}${signBlock("Đại diện Ban Giám đốc")}`;
 }
 
+function partyFields(person, fallbackText) {
+  if (person) {
+    return `
+      <div class="bb-row"><b>Họ tên:</b> ${esc(person.name || "—")}</div>
+      ${person.dept ? `<div class="bb-row"><b>Bộ phận:</b> ${esc(person.dept)}</div>` : ""}
+      ${person.position ? `<div class="bb-row"><b>Chức vụ:</b> ${esc(person.position)}</div>` : ""}
+    `;
+  }
+  return `<div class="bb-row"><b>Đại diện:</b> ${esc(fallbackText)}</div>`;
+}
+
+function responsibilityAndCommitmentHTML() {
+  return `
+    <div class="bb-block bb-responsibility">
+      <h4>III. QUY ĐỊNH TRÁCH NHIỆM CỦA NGƯỜI NHẬN (BÊN B)</h4>
+      <div class="bb-sub"><b>1. Trách nhiệm quản lý và sử dụng:</b></div>
+      <ul>
+        <li>Sử dụng đúng mục đích công việc của công ty.</li>
+        <li>Vận hành đúng kỹ thuật và vệ sinh định kỳ.</li>
+        <li>Không tự ý thay đổi linh kiện, kết cấu thiết bị.</li>
+        <li>Không cho người khác mượn khi chưa được phép.</li>
+        <li>Báo cáo ngay cho bộ phận quản lý khi có sự cố.</li>
+      </ul>
+      <div class="bb-sub"><b>2. Xử lý khi hư hỏng, mất mát:</b></div>
+      <ul>
+        <li><b>Hao mòn tự nhiên / Bất khả kháng:</b> Công ty chịu chi phí sửa chữa, thay thế.</li>
+        <li><b>Do lỗi cá nhân (cẩu thả, cố ý):</b> Nhân viên đền bù 100% chi phí sửa chữa hoặc giá trị tài sản.</li>
+        <li><b>Làm mất thiết bị:</b> Nhân viên bồi thường thiết bị tương đương hoặc trừ tiền lương theo giá trị thị trường.</li>
+        <li><b>Thời hạn báo cáo:</b> Phải thông báo bằng văn bản trong vòng 24 giờ kể từ khi xảy ra sự việc.</li>
+      </ul>
+    </div>
+
+    <div class="bb-block bb-commit">
+      <h4>IV. ĐIỀU KHOẢN CAM KẾT</h4>
+      <ul>
+        <li><b>Tự nguyện ký kết:</b> Hai bên đồng ý toàn bộ nội dung bàn giao và chịu trách nhiệm trước pháp luật.</li>
+        <li><b>Cam kết bảo quản:</b> Người nhận cam kết quản lý, sử dụng thiết bị đúng quy định công ty.</li>
+        <li><b>Chấp thuận đền bù:</b> Nếu làm mất hoặc hư hỏng do lỗi cá nhân, người nhận đồng ý bồi thường theo quyết định của công ty (hoặc trừ trực tiếp vào lương).</li>
+        <li><b>Hiệu lực văn bản:</b> Biên bản có hiệu lực kể từ ngày ký và là căn cứ để thu hồi, điều chuyển thiết bị sau này.</li>
+      </ul>
+    </div>
+  `;
+}
+
+function terminationNoteHTML() {
+  return `
+    <div class="bb-block">
+      <h4>III. XÁC NHẬN CHẤM DỨT TRÁCH NHIỆM</h4>
+      <div class="bb-row">Kể từ thời điểm ký biên bản này, trách nhiệm quản lý, sử dụng và bồi thường (nếu có) của Bên A đối với thiết bị nêu trên được chuyển giao lại cho Công ty; Bên A không còn chịu trách nhiệm bảo quản thiết bị kể từ thời điểm bàn giao.</div>
+    </div>
+  `;
+}
+
 // payload = { type, device, from: {name,dept,position}|null, to: {...}|null, condition, note, date, byEmail }
 export function buildReceiptHTML(payload) {
   const { type, device, from, to, condition, note, date, byEmail } = payload;
   const typeLabel = TYPE_LABEL[type] || "BIÊN BẢN";
   const s = state.settings || {};
+  const deptFallback = s.companyDept || "Phòng Công nghệ thông tin";
   const refCode = `${(type || "bb").toUpperCase()}-${esc(device.id)}-${new Date(date || Date.now()).getTime().toString().slice(-6)}`;
 
-  const fromTitle = type === "transfer" ? "Bên giao (nhân viên cũ)" : (type === "return" ? "Nhân viên bàn giao lại" : "Bên giao");
-  const toTitle = type === "transfer" ? "Bên nhận (nhân viên mới)" : "Bên nhận / Người sử dụng";
+  let partyATitle, partyAPerson, partyBTitle, partyBPerson;
+  if (type === "handover") {
+    partyATitle = "BÊN A — Bên giao (Phòng CNTT)"; partyAPerson = null;
+    partyBTitle = "BÊN B — Bên nhận (Người sử dụng)"; partyBPerson = to;
+  } else if (type === "return") {
+    partyATitle = "BÊN A — Bên giao lại (Người sử dụng)"; partyAPerson = from;
+    partyBTitle = "BÊN B — Bên nhận (Phòng CNTT)"; partyBPerson = null;
+  } else if (type === "transfer") {
+    partyATitle = "BÊN A — Bên giao (Nhân viên cũ)"; partyAPerson = from;
+    partyBTitle = "BÊN B — Bên nhận (Nhân viên mới)"; partyBPerson = to;
+  } else {
+    partyATitle = "Người lập biên bản (Phòng CNTT)"; partyAPerson = null;
+    partyBTitle = "Đại diện Ban Giám đốc"; partyBPerson = null;
+  }
+
+  const showResponsibility = type === "handover" || type === "transfer";
 
   return `
     <div class="bb-page">
       <div class="bb-head">
+        <img class="bb-logo" src="assets/logo.jpg" alt="Logo">
         <div class="co">${esc(s.companyName || "Công ty TNHH Jeanic Garment")}</div>
         ${s.companyAddress ? `<div class="dept">${esc(s.companyAddress)}</div>` : ""}
-        <div class="dept">${esc(s.companyDept || "Phòng Công nghệ thông tin")}</div>
+        <div class="dept">${esc(deptFallback)}</div>
         <h1>${typeLabel}</h1>
         <div>${fmtDateVN(date)}</div>
       </div>
 
       <div class="bb-block">
-        <h4>Thông tin thiết bị</h4>
+        <h4>I. THÔNG TIN THIẾT BỊ</h4>
         <div class="bb-row"><b>Mã thiết bị:</b> ${esc(device.id)}</div>
         <div class="bb-row"><b>Loại / Thương hiệu:</b> ${esc(device.type)} — ${esc(device.brand)}</div>
         ${device.specs ? `<div class="bb-row"><b>Thông số:</b> ${esc(device.specs)}</div>` : ""}
         <div class="bb-row"><b>Tình trạng bàn giao:</b> ${esc(condition || device.condition)}</div>
       </div>
 
-      ${partyBlock(fromTitle, from)}
-      ${partyBlock(toTitle, to)}
+      <div class="bb-block">
+        <h4>II. THÔNG TIN CÁC BÊN</h4>
+        <div class="bb-party-grid">
+          <div class="bb-party">
+            <div class="bb-party-title">${esc(partyATitle)}</div>
+            ${partyFields(partyAPerson, deptFallback)}
+          </div>
+          <div class="bb-party">
+            <div class="bb-party-title">${esc(partyBTitle)}</div>
+            ${partyFields(partyBPerson, deptFallback)}
+          </div>
+        </div>
+      </div>
+
+      ${showResponsibility ? responsibilityAndCommitmentHTML() : (type === "return" ? terminationNoteHTML() : "")}
 
       ${note ? `<div class="bb-block"><h4>Ghi chú</h4><div class="bb-row">${esc(note)}</div></div>` : ""}
 
-      <div class="bb-terms">Các bên xác nhận đã kiểm tra tình trạng thiết bị và đồng ý với nội dung biên bản trên. Biên bản được lập thành các bản có giá trị như nhau, mỗi bên liên quan giữ 01 bản.</div>
+      ${!showResponsibility ? `<div class="bb-terms">Các bên xác nhận đã kiểm tra tình trạng thiết bị và đồng ý với nội dung biên bản trên. Biên bản được lập thành các bản có giá trị như nhau, mỗi bên liên quan giữ 01 bản.</div>` : ""}
 
       <div class="bb-sign">
         ${signatureRow(type)}
@@ -135,7 +205,7 @@ export function printAssetLabel(id) {
       <button class="btn btn-brand" onclick="app.exportReceiptPDF()"><i class="ph ph-file-pdf"></i> Xuất PDF</button>
     </div>
     <div class="label-sheet">
-      <div class="ls-head">${esc((state.settings || {}).companyName || "JEANIC GARMENT")} — TEM TÀI SẢN CNTT</div>
+      <div class="ls-head"><img src="assets/logo.jpg" alt="Logo"> ${esc((state.settings || {}).companyName || "JEANIC GARMENT")} — TEM TÀI SẢN CNTT</div>
       <div class="label-grid">
         <div class="label-card">
           <div class="lc-id">${esc(d.id)}</div>
