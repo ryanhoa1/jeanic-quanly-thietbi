@@ -122,7 +122,7 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; letter-spac
 .field textarea { resize: vertical; min-height: 80px; }
 
 /* ---------- Login ---------- */
-#login-overlay {
+#login-overlay, #mfa-overlay {
   position: fixed; inset: 0; z-index: 100;
   background: radial-gradient(circle at top right, #1E3A8A 0%, var(--bg-main) 40%);
   display: flex; align-items: center; justify-content: center;

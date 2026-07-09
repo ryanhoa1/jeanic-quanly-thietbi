@@ -1,13 +1,15 @@
 import { auth, useFirebase } from './firebase-config.js';
 import {
   resolveRole, login, signup, logout,
-  setLocalUser, currentUser, currentRole, setCurrentUser,
-  listAccounts, setAccountRole, setAccountActive
+  setLocalUser, currentUser, currentRole, currentAccount, setCurrentUser,
+  listAccounts, setAccountRole, setAccountActive, setAccountEmployeeLink,
+  startMfaEnrollment, confirmMfaEnrollment, disableMfa, verifyMfaLoginToken
 } from './auth.js';
 import { loadAll, state, persistSettings, ASSET_CATEGORIES, getCategoryMeta } from './db.js';
 import {
   renderDashboard, renderDevices, renderDeviceDetail,
-  renderEmployees, renderEmployeeDetail, renderOps, renderReports, renderHistoryTable, renderSettings, renderAccountsTable
+  renderEmployees, renderEmployeeDetail, renderOps, renderReports, renderHistoryTable, renderSettings, renderAccountsTable,
+  renderMyDevices, renderMyAccount
 } from './views.js';
 import { toast, openModal, closeModal } from './ui.js';
 import {
@@ -30,20 +32,29 @@ import {
 window.app = {};
 
 const NAV = [
-  { grp: "Tổng quan", items: [{ id: "dashboard", label: "Bảng điều khiển", ico: "ph-squares-four" }] },
-  { grp: "Tài sản", items: [
+  { grp: "Tổng quan", roles: ["admin"], items: [{ id: "dashboard", label: "Bảng điều khiển", ico: "ph-squares-four" }] },
+  { grp: "Tài sản", roles: ["admin"], items: [
     { id: "devices", label: "Tất cả tài sản", ico: "ph-squares-four", cat: "all" },
     ...ASSET_CATEGORIES.map(c => ({ id: "devices", label: c.label, ico: c.ico, cat: c.id }))
   ]},
-  { grp: "Nhân sự", items: [{ id: "employees", label: "Nhân viên", ico: "ph-users" }] },
-  { grp: "Nghiệp vụ", items: [
+  { grp: "Nhân sự", roles: ["admin"], items: [{ id: "employees", label: "Nhân viên", ico: "ph-users" }] },
+  { grp: "Nghiệp vụ", roles: ["admin"], items: [
     { id: "ops", label: "Nghiệp vụ", ico: "ph-arrows-left-right" },
     { id: "reports", label: "Báo cáo & Kiểm kê", ico: "ph-file-xls" }
+  ]},
+  { grp: "Cá nhân", roles: ["admin", "user"], items: [
+    { id: "mydevices", label: "Thiết bị của tôi", ico: "ph-laptop" },
+    { id: "myaccount", label: "Tài khoản của tôi", ico: "ph-user-circle" }
   ]},
   { grp: "Hệ thống", admin: true, items: [
     { id: "settings", label: "Cài đặt", ico: "ph-gear" }
   ]}
 ];
+
+// Views a non-admin ("user") account is allowed to open. Everything else
+// (company-wide inventory, employee list, ops, reports, settings) is
+// admin-only; regular employees only get their own self-service portal.
+const USER_ALLOWED_VIEWS = ["mydevices", "myaccount"];
 
 const PAGE_META = {
   dashboard: ["Bảng điều khiển", "Tình trạng thiết bị CNTT toàn công ty"],
@@ -52,7 +63,9 @@ const PAGE_META = {
   employees: ["Nhân viên", "Danh sách nhân viên"],
   ops: ["Nghiệp vụ", "Bàn giao, thu hồi, điều chuyển thiết bị"],
   reports: ["Báo cáo & Kiểm kê", "Xuất danh sách Excel để báo cáo và kiểm kê thiết bị"],
-  settings: ["Cài đặt", "Cấu hình hệ thống"]
+  settings: ["Cài đặt", "Cấu hình hệ thống"],
+  mydevices: ["Thiết bị của tôi", "Danh sách thiết bị bạn đang được bàn giao"],
+  myaccount: ["Tài khoản của tôi", "Thông tin tài khoản và bảo mật đăng nhập"]
 };
 
 let deviceFilter = { q: "", status: "all", dept: "all", category: "all" };
@@ -142,7 +155,7 @@ window.app.enterLocalMode = async () => {
   document.getElementById("shell").style.display = "flex";
   applyRoleUI();
   await loadAll();
-  setView("dashboard");
+  setView("dashboard"); // local/offline mode is always a single admin session
 };
 
 function applyRoleUI() {
@@ -153,7 +166,10 @@ function applyRoleUI() {
 // --- Navigation ---
 function renderNav() {
   const nav = document.getElementById("mainNav");
-  nav.innerHTML = NAV.filter(g => !g.admin || currentRole === "admin").map(g => `
+  nav.innerHTML = NAV
+    .filter(g => !g.admin || currentRole === "admin")
+    .filter(g => !g.roles || g.roles.includes(currentRole))
+    .map(g => `
     <div class="grp-label">${g.grp}</div>
     ${g.items.map(it => {
       const isCat = it.cat !== undefined;
@@ -173,7 +189,11 @@ function renderNav() {
 function setView(view, arg) {
   if (NAV.some(g => g.admin && g.items.some(it => it.id === view)) && currentRole !== "admin") {
     toast("Chỉ quản trị viên mới truy cập được mục này", "err");
-    view = "dashboard";
+    view = "mydevices";
+  }
+  if (currentRole !== "admin" && !USER_ALLOWED_VIEWS.includes(view)) {
+    toast("Tài khoản của bạn chỉ có thể xem thiết bị và tài khoản cá nhân", "err");
+    view = "mydevices";
   }
 
   state.view = view;
@@ -214,6 +234,10 @@ function setView(view, arg) {
   } else if (view === "settings") {
     content.innerHTML = renderSettings();
     loadAccountsBox();
+  } else if (view === "mydevices") {
+    content.innerHTML = renderMyDevices(currentAccount, currentUser?.email);
+  } else if (view === "myaccount") {
+    content.innerHTML = renderMyAccount(currentUser?.email, currentRole, currentAccount, useFirebase);
   } else {
     content.innerHTML = `
       <div class="empty">
@@ -309,7 +333,7 @@ async function loadAccountsBox() {
   const box = document.getElementById("accountsBox");
   if (!box) return;
   const result = await listAccounts();
-  box.innerHTML = renderAccountsTable(result, currentUser?.email);
+  box.innerHTML = renderAccountsTable(result, currentUser?.email, state.employees);
 }
 
 window.app.changeAccountRole = async (uid, role) => {
@@ -318,29 +342,180 @@ window.app.changeAccountRole = async (uid, role) => {
   else toast("Không thể cập nhật vai trò", "err");
 };
 
+window.app.changeAccountEmployee = async (uid, employeeId) => {
+  const ok = await setAccountEmployeeLink(uid, employeeId || null);
+  if (ok) { toast("Đã liên kết tài khoản với nhân viên"); loadAccountsBox(); }
+  else toast("Không thể liên kết tài khoản", "err");
+};
+
 window.app.toggleAccountActive = async (uid, currentlyActive) => {
   const ok = await setAccountActive(uid, !currentlyActive);
   if (ok) { toast(currentlyActive ? "Đã khoá tài khoản" : "Đã mở khoá tài khoản"); loadAccountsBox(); }
   else toast("Không thể cập nhật trạng thái", "err");
 };
 
+function defaultViewForRole(role) {
+  return role === "admin" ? "dashboard" : "mydevices";
+}
+
+// --- MFA: enable / disable from "Tài khoản của tôi" ---
+window.app.startMfaSetup = async () => {
+  if (!currentUser) return;
+  const res = await startMfaEnrollment(currentUser.uid, currentUser.email);
+  if (!res.success) { toast(res.message, "err"); return; }
+
+  const body = `
+    <p style="color:var(--text-secondary); font-size:13.5px; margin-bottom:16px;">
+      Quét mã QR bên dưới bằng ứng dụng xác thực (Google Authenticator, Microsoft Authenticator, Authy…),
+      sau đó nhập mã 6 số hiện ra để xác nhận và bật MFA.
+    </p>
+    <div style="display:flex; justify-content:center; margin-bottom:16px;">
+      <div id="mfaQrBox" style="background:#fff; padding:12px; border-radius:12px;"></div>
+    </div>
+    <div class="field">
+      <label>Mã khóa thủ công (nếu không quét được QR)</label>
+      <input type="text" readonly value="${res.secret}" style="font-family:var(--font-mono); letter-spacing:0.05em;">
+    </div>
+    <div class="field">
+      <label>Nhập mã 6 số để xác nhận</label>
+      <input type="text" id="mfaEnrollCode" maxlength="6" inputmode="numeric" placeholder="000000" style="font-family:var(--font-mono); letter-spacing:0.3em; text-align:center; font-size:20px;">
+    </div>
+  `;
+  const foot = `
+    <button class="btn btn-ghost" onclick="app.closeModal()">Huỷ</button>
+    <button class="btn btn-brand" onclick="app.confirmMfaSetup('${res.secret}')"><i class="ph ph-check"></i> Xác nhận & Bật MFA</button>
+  `;
+  openModal("Bật xác thực 2 lớp (MFA)", body, foot);
+
+  setTimeout(() => {
+    const box = document.getElementById("mfaQrBox");
+    if (box && window.QRCode) {
+      new window.QRCode(box, { text: res.otpauth, width: 180, height: 180 });
+    }
+  }, 30);
+};
+
+window.app.confirmMfaSetup = async (secret) => {
+  const codeEl = document.getElementById("mfaEnrollCode");
+  const token = codeEl ? codeEl.value.trim() : "";
+  if (!token) { toast("Vui lòng nhập mã xác thực", "err"); return; }
+  const res = await confirmMfaEnrollment(currentUser.uid, secret, token);
+  if (!res.success) { toast(res.message, "err"); return; }
+  currentAccount.mfaEnabled = true;
+  currentAccount.mfaSecret = secret;
+  closeModal();
+  toast("Đã bật xác thực 2 lớp cho tài khoản");
+  refreshCurrentView();
+};
+
+window.app.openDisableMfaModal = () => {
+  const body = `
+    <p style="color:var(--text-secondary); font-size:13.5px; margin-bottom:16px;">
+      Nhập mã 6 số hiện tại từ ứng dụng xác thực của bạn để tắt MFA.
+    </p>
+    <div class="field">
+      <label>Mã xác thực</label>
+      <input type="text" id="mfaDisableCode" maxlength="6" inputmode="numeric" placeholder="000000" style="font-family:var(--font-mono); letter-spacing:0.3em; text-align:center; font-size:20px;">
+    </div>
+  `;
+  const foot = `
+    <button class="btn btn-ghost" onclick="app.closeModal()">Huỷ</button>
+    <button class="btn btn-brand" onclick="app.confirmDisableMfa()"><i class="ph ph-shield-slash"></i> Tắt MFA</button>
+  `;
+  openModal("Tắt xác thực 2 lớp (MFA)", body, foot);
+};
+
+window.app.confirmDisableMfa = async () => {
+  const codeEl = document.getElementById("mfaDisableCode");
+  const token = codeEl ? codeEl.value.trim() : "";
+  if (!token) { toast("Vui lòng nhập mã xác thực", "err"); return; }
+  const res = await disableMfa(currentUser.uid, currentAccount.mfaSecret, token);
+  if (!res.success) { toast(res.message, "err"); return; }
+  currentAccount.mfaEnabled = false;
+  currentAccount.mfaSecret = null;
+  closeModal();
+  toast("Đã tắt xác thực 2 lớp");
+  refreshCurrentView();
+};
+
+// --- MFA: verification step during login ---
+let pendingMfaUser = null;
+let pendingMfaAccount = null;
+
+function showMfaScreen(user, account) {
+  pendingMfaUser = user;
+  pendingMfaAccount = account;
+  document.getElementById("login-overlay").style.display = "none";
+  document.getElementById("shell").style.display = "none";
+  const mfaOverlay = document.getElementById("mfa-overlay");
+  const errBox = document.getElementById("mfaLoginErr");
+  const codeEl = document.getElementById("mfaLoginCode");
+  if (errBox) errBox.classList.remove("show");
+  if (codeEl) codeEl.value = "";
+  if (mfaOverlay) mfaOverlay.style.display = "flex";
+}
+
+function hideMfaScreen() {
+  pendingMfaUser = null;
+  pendingMfaAccount = null;
+  const mfaOverlay = document.getElementById("mfa-overlay");
+  if (mfaOverlay) mfaOverlay.style.display = "none";
+}
+
+async function enterAppAfterAuth(user, account) {
+  setCurrentUser(user, account.role, account);
+  hideMfaScreen();
+  document.getElementById("login-overlay").style.display = "none";
+  document.getElementById("shell").style.display = "flex";
+  applyRoleUI();
+  await loadAll();
+  setView(defaultViewForRole(account.role));
+}
+
+window.app.verifyMfaLogin = async () => {
+  const codeEl = document.getElementById("mfaLoginCode");
+  const errBox = document.getElementById("mfaLoginErr");
+  const token = codeEl ? codeEl.value.trim() : "";
+  if (errBox) errBox.classList.remove("show");
+
+  if (!token) {
+    if (errBox) { errBox.textContent = "Vui lòng nhập mã xác thực."; errBox.classList.add("show"); }
+    return;
+  }
+  const ok = await verifyMfaLoginToken(pendingMfaAccount.mfaSecret, token);
+  if (!ok) {
+    if (errBox) { errBox.textContent = "Mã xác thực không đúng. Vui lòng thử lại."; errBox.classList.add("show"); }
+    return;
+  }
+  await enterAppAfterAuth(pendingMfaUser, pendingMfaAccount);
+};
+
+window.app.cancelMfaLogin = async () => {
+  hideMfaScreen();
+  if (useFirebase && auth.currentUser) {
+    await auth.signOut();
+  }
+  document.getElementById("login-overlay").style.display = "flex";
+};
+
 // --- Init ---
 if (useFirebase) {
   auth.onAuthStateChanged(async (user) => {
     if (user) {
-      const { role, active } = await resolveRole(user);
-      if (!active) {
+      const account = await resolveRole(user);
+      if (!account.active) {
         toast("Tài khoản đã bị vô hiệu hoá.", "err");
         await auth.signOut();
         return;
       }
-      setCurrentUser({ uid: user.uid, email: user.email }, role);
-      document.getElementById("login-overlay").style.display = "none";
-      document.getElementById("shell").style.display = "flex";
-      applyRoleUI();
-      await loadAll();
-      setView("dashboard");
+      const authUser = { uid: user.uid, email: user.email };
+      if (account.mfaEnabled) {
+        showMfaScreen(authUser, account);
+        return;
+      }
+      await enterAppAfterAuth(authUser, account);
     } else {
+      hideMfaScreen();
       document.getElementById("login-overlay").style.display = "flex";
       document.getElementById("shell").style.display = "none";
     }

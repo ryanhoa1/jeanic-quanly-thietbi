@@ -69,6 +69,32 @@
     </div>
   </div>
 
+  <!-- MFA Verification Screen (shown after correct password, before entering the app) -->
+  <div id="mfa-overlay" style="display:none;">
+    <div class="login-box">
+      <div class="login-header">
+        <div class="logo"><img src="assets/logo.jpg" alt="Jeanic Garment"></div>
+        <h3>Xác thực 2 lớp</h3>
+        <div class="sub">Nhập mã 6 số từ ứng dụng xác thực của bạn</div>
+      </div>
+
+      <div class="err" id="mfaLoginErr"></div>
+
+      <div class="field">
+        <label>Mã xác thực (OTP)</label>
+        <div class="input-wrap">
+          <i class="ph ph-shield-check"></i>
+          <input type="text" id="mfaLoginCode" maxlength="6" inputmode="numeric" placeholder="000000" style="font-family:var(--font-mono); letter-spacing:0.3em;">
+        </div>
+      </div>
+
+      <div class="auth-actions">
+        <button class="btn btn-brand" onclick="app.verifyMfaLogin()">Xác nhận</button>
+        <button class="btn btn-ghost" onclick="app.cancelMfaLogin()">Huỷ, đăng xuất</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Main App Shell -->
   <div id="shell" style="display:none;">
     <!-- Sidebar -->

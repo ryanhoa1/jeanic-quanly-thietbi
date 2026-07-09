@@ -380,6 +380,134 @@ export function renderEmployees(filter) {
   return html;
 }
 
+// ---------- Self-service portal (per-account) ----------
+// Resolves which employee record an account "belongs to": first by the
+// explicit employeeId link set by an admin, falling back to a case-insensitive
+// email match so accounts work out of the box before an admin gets to link them.
+export function resolveMyEmployee(account, email) {
+  if (account && account.employeeId) {
+    const e = state.employees.find(x => x.id === account.employeeId);
+    if (e) return e;
+  }
+  if (email) {
+    const lower = email.toLowerCase();
+    return state.employees.find(x => (x.email || "").toLowerCase() === lower) || null;
+  }
+  return null;
+}
+
+export function renderMyDevices(account, email) {
+  const emp = resolveMyEmployee(account, email);
+
+  if (!emp) {
+    return `
+      <div class="panel">
+        ${emptyState(
+          "Chưa liên kết hồ sơ nhân viên",
+          "Tài khoản của bạn chưa được gắn với một hồ sơ nhân viên trong hệ thống, nên chưa thể hiển thị danh sách thiết bị. Vui lòng liên hệ Phòng Công nghệ thông tin để được liên kết tài khoản."
+        )}
+      </div>
+    `;
+  }
+
+  const currentDevices = state.devices.filter(d => d.holderId === emp.id);
+  const relatedHistory = [];
+  state.devices.forEach(d => (d.history || []).forEach(h => {
+    if (h.to === emp.name || h.from === emp.name) {
+      relatedHistory.push({ ...h, deviceId: d.id, deviceType: d.type });
+    }
+  }));
+  relatedHistory.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  return `
+    <div class="detail-grid">
+      <div>
+        <div class="panel">
+          <div class="panel-head"><h3><i class="ph ph-user"></i> Thông tin của bạn</h3></div>
+          <div class="kv"><b>Mã nhân viên</b><span style="font-family:var(--font-mono);">${esc(emp.id)}</span></div>
+          <div class="kv"><b>Họ tên</b><span>${esc(emp.name)}</span></div>
+          <div class="kv"><b>Bộ phận</b><span>${esc(emp.dept || "—")}</span></div>
+          <div class="kv"><b>Chức vụ</b><span>${esc(emp.position || "—")}</span></div>
+          <div class="kv"><b>Trạng thái</b><span class="pill ${emp.status === 'Đang làm việc' ? 'pill-success' : 'pill-slate'}">${esc(emp.status || "—")}</span></div>
+        </div>
+
+        ${relatedHistory.length > 0 ? `
+        <div class="panel">
+          <div class="panel-head"><h3><i class="ph ph-clock-counter-clockwise"></i> Lịch sử bàn giao / thu hồi của bạn</h3></div>
+          <div class="table-responsive">
+            <table class="data">
+              <tr><th>Ngày</th><th>Thiết bị</th><th>Sự kiện</th><th>Chi tiết</th></tr>
+              ${relatedHistory.slice(0, 30).map(h => `
+                <tr>
+                  <td style="font-family: var(--font-mono); font-size: 12px;">${fmtDateTime(h.date)}</td>
+                  <td><div class="cell-title">${esc(h.deviceId)}</div><div class="cell-sub">${esc(h.deviceType || "")}</div></td>
+                  <td>${esc(h.label)}</td>
+                  <td class="cell-sub">${esc(h.to ? ("→ " + h.to) : (h.from ? ("từ " + h.from) : (h.note || "—")))}</td>
+                </tr>`).join("")}
+            </table>
+          </div>
+        </div>` : ""}
+      </div>
+
+      <div>
+        <div class="panel">
+          <div class="panel-head">
+            <h3><i class="ph ph-laptop"></i> Thiết bị bạn đang được bàn giao (${currentDevices.length})</h3>
+          </div>
+          ${currentDevices.length === 0 ? emptyState("Chưa được bàn giao thiết bị nào", "Hiện bạn không được giao thiết bị nào trong hệ thống.") : `
+          <div class="table-responsive">
+            <table class="data">
+              <tr><th>Mã TB</th><th>Loại / Thương hiệu</th><th>Tình trạng</th><th>Trạng thái</th></tr>
+              ${currentDevices.map(d => `
+                <tr>
+                  <td><b style="color:#fff; font-family: var(--font-mono);">${esc(d.id)}</b></td>
+                  <td><div class="cell-title">${esc(d.type)}</div><div class="cell-sub">${esc(d.brand)}</div></td>
+                  <td>${esc(d.condition)}</td>
+                  <td><span class="pill ${STATUS_META[d.status]?.pill || 'pill-slate'}">${esc(d.status)}</span></td>
+                </tr>
+              `).join("")}
+            </table>
+          </div>`}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+export function renderMyAccount(email, role, account, useFirebase) {
+  const emp = resolveMyEmployee(account, email);
+  const mfaOn = !!(account && account.mfaEnabled);
+
+  return `
+    <div class="detail-grid">
+      <div class="panel">
+        <div class="panel-head"><h3><i class="ph ph-identification-card"></i> Thông tin tài khoản</h3></div>
+        <div class="kv"><b>Email</b><span>${esc(email || "—")}</span></div>
+        <div class="kv"><b>Vai trò</b><span class="pill pill-brand">${role === 'admin' ? 'Quản trị viên' : 'Nhân viên'}</span></div>
+        <div class="kv"><b>Hồ sơ nhân viên liên kết</b><span>${emp ? `${esc(emp.name)} (${esc(emp.id)})` : 'Chưa liên kết — liên hệ IT'}</span></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3><i class="ph ph-shield-check"></i> Xác thực 2 lớp (MFA)</h3></div>
+        ${!useFirebase ? `
+          ${emptyState("Không khả dụng ở chế độ offline", "MFA chỉ hoạt động khi ứng dụng kết nối Firebase (chế độ online).")}
+        ` : `
+          <p style="color:var(--text-secondary); font-size:13.5px; margin-bottom:16px;">
+            Khi bật, mỗi lần đăng nhập bạn sẽ cần nhập thêm mã 6 số từ ứng dụng xác thực
+            (Google Authenticator, Microsoft Authenticator, Authy…) sau khi nhập đúng mật khẩu.
+            Việc này giúp bảo vệ tài khoản ngay cả khi mật khẩu bị lộ.
+          </p>
+          <div class="kv"><b>Trạng thái</b><span class="pill ${mfaOn ? 'pill-success' : 'pill-slate'}">${mfaOn ? 'Đã bật' : 'Chưa bật'}</span></div>
+          ${mfaOn
+            ? `<button class="btn btn-ghost" onclick="app.openDisableMfaModal()"><i class="ph ph-shield-slash"></i> Tắt MFA</button>`
+            : `<button class="btn btn-brand" onclick="app.startMfaSetup()"><i class="ph ph-shield-plus"></i> Bật MFA</button>`
+          }
+        `}
+      </div>
+    </div>
+  `;
+}
+
 // ---------- Employee Detail ----------
 export function renderEmployeeDetail(id) {
   const e = state.employees.find(x => x.id === id);
@@ -640,17 +768,18 @@ export function renderSettings() {
   `;
 }
 
-export function renderAccountsTable(accResult, currentUserEmail) {
+export function renderAccountsTable(accResult, currentUserEmail, employees) {
   if (!accResult.supported) {
     return emptyState("Không khả dụng", "Quản lý tài khoản chỉ hoạt động khi kết nối Firebase (chế độ online).");
   }
   if (accResult.accounts.length === 0) {
     return emptyState("Chưa có tài khoản nào", accResult.error ? ("Lỗi: " + accResult.error) : "");
   }
+  const empList = employees || [];
   return `
     <div class="table-responsive">
       <table class="data">
-        <tr><th>Email</th><th>Vai trò</th><th>Trạng thái</th><th></th></tr>
+        <tr><th>Email</th><th>Vai trò</th><th>Nhân viên liên kết</th><th>MFA</th><th>Trạng thái</th><th></th></tr>
         ${accResult.accounts.map(a => `
           <tr>
             <td class="cell-title">${esc(a.email)}${a.email === currentUserEmail ? ' <span class="pill pill-brand">Bạn</span>' : ''}</td>
@@ -660,6 +789,13 @@ export function renderAccountsTable(accResult, currentUserEmail) {
                 <option value="admin" ${a.role === 'admin' ? 'selected' : ''}>Quản trị viên</option>
               </select>
             </td>
+            <td>
+              <select onchange="app.changeAccountEmployee('${a.uid}', this.value)">
+                <option value="">— Chưa liên kết —</option>
+                ${empList.map(e => `<option value="${esc(e.id)}" ${a.employeeId === e.id ? 'selected' : ''}>${esc(e.id)} — ${esc(e.name)}</option>`).join("")}
+              </select>
+            </td>
+            <td><span class="pill ${a.mfaEnabled ? 'pill-success' : 'pill-slate'}">${a.mfaEnabled ? 'Đã bật' : 'Chưa bật'}</span></td>
             <td><span class="pill ${a.active !== false ? 'pill-success' : 'pill-danger'}">${a.active !== false ? 'Hoạt động' : 'Đã khoá'}</span></td>
             <td>
               <button class="btn btn-sm btn-ghost" onclick="app.toggleAccountActive('${a.uid}', ${a.active !== false})" ${a.email === currentUserEmail ? 'disabled' : ''}>
