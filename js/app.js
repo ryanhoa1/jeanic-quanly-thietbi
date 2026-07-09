@@ -4,14 +4,14 @@ import {
   setLocalUser, currentUser, currentRole, setCurrentUser,
   listAccounts, setAccountRole, setAccountActive
 } from './auth.js';
-import { loadAll, state, persistSettings } from './db.js';
+import { loadAll, state, persistSettings, ASSET_CATEGORIES, getCategoryMeta } from './db.js';
 import {
   renderDashboard, renderDevices, renderDeviceDetail,
   renderEmployees, renderOps, renderReports, renderHistoryTable, renderSettings, renderAccountsTable
 } from './views.js';
 import { toast, openModal, closeModal } from './ui.js';
 import {
-  openDeviceForm, submitDeviceForm,
+  openDeviceForm, submitDeviceForm, updateDeviceFormAttrs,
   openEmployeeForm, submitEmployeeForm,
   openOpsForm, submitOpsForm,
   openRepairForm, submitRepairForm
@@ -31,9 +31,10 @@ window.app = {};
 const NAV = [
   { grp: "Tổng quan", items: [{ id: "dashboard", label: "Bảng điều khiển", ico: "ph-squares-four" }] },
   { grp: "Tài sản", items: [
-    { id: "devices", label: "Thiết bị", ico: "ph-laptop" },
-    { id: "employees", label: "Nhân viên", ico: "ph-users" }
+    { id: "devices", label: "Tất cả tài sản", ico: "ph-squares-four", cat: "all" },
+    ...ASSET_CATEGORIES.map(c => ({ id: "devices", label: c.label, ico: c.ico, cat: c.id }))
   ]},
+  { grp: "Nhân sự", items: [{ id: "employees", label: "Nhân viên", ico: "ph-users" }] },
   { grp: "Nghiệp vụ", items: [
     { id: "ops", label: "Nghiệp vụ", ico: "ph-arrows-left-right" },
     { id: "reports", label: "Báo cáo & Kiểm kê", ico: "ph-file-xls" }
@@ -45,7 +46,7 @@ const NAV = [
 
 const PAGE_META = {
   dashboard: ["Bảng điều khiển", "Tình trạng thiết bị CNTT toàn công ty"],
-  devices: ["Thiết bị", "Sổ quản lý tài sản CNTT — vòng đời từng thiết bị"],
+  devices: ["Tất cả tài sản", "Sổ quản lý tài sản CNTT — vòng đời từng thiết bị"],
   device: ["Chi tiết thiết bị", "Thông tin, lịch sử và tài chính của thiết bị"],
   employees: ["Nhân viên", "Danh sách nhân viên"],
   ops: ["Nghiệp vụ", "Bàn giao, thu hồi, điều chuyển thiết bị"],
@@ -53,7 +54,7 @@ const PAGE_META = {
   settings: ["Cài đặt", "Cấu hình hệ thống"]
 };
 
-let deviceFilter = { q: "", status: "all", dept: "all" };
+let deviceFilter = { q: "", status: "all", dept: "all", category: "all" };
 let employeeFilter = { q: "", dept: "all" };
 
 // --- Auth UI Logic ---
@@ -153,11 +154,18 @@ function renderNav() {
   const nav = document.getElementById("mainNav");
   nav.innerHTML = NAV.filter(g => !g.admin || currentRole === "admin").map(g => `
     <div class="grp-label">${g.grp}</div>
-    ${g.items.map(it => `
-      <button class="${state.view === it.id ? 'active' : ''}" onclick="app.setView('${it.id}')">
-        <i class="ph ${it.ico}"></i> ${it.label}
-      </button>
-    `).join("")}
+    ${g.items.map(it => {
+      const isCat = it.cat !== undefined;
+      const active = isCat
+        ? (state.view === "devices" && (deviceFilter.category || "all") === it.cat)
+        : (state.view === it.id);
+      const onclick = isCat ? `app.setDeviceCategory('${it.cat}')` : `app.setView('${it.id}')`;
+      return `
+        <button class="${active ? 'active' : ''} ${isCat ? 'nav-sub' : ''}" onclick="${onclick}">
+          <i class="ph ${it.ico}"></i> ${it.label}
+        </button>
+      `;
+    }).join("")}
   `).join("");
 }
 
@@ -183,6 +191,11 @@ function setView(view, arg) {
     content.innerHTML = renderDashboard();
   } else if (view === "devices") {
     actions.innerHTML = `<button class="btn btn-brand" onclick="app.openDeviceForm()"><i class="ph ph-plus"></i> Thêm thiết bị</button>`;
+    const catMeta = deviceFilter.category && deviceFilter.category !== "all" ? getCategoryMeta(deviceFilter.category) : null;
+    document.getElementById("pageTitle").textContent = catMeta ? catMeta.label : "Tất cả tài sản";
+    document.getElementById("pageDesc").textContent = catMeta
+      ? `Danh sách tài sản thuộc nhóm: ${catMeta.label}`
+      : PAGE_META.devices[1];
     content.innerHTML = renderDevices(deviceFilter);
   } else if (view === "device") {
     content.innerHTML = renderDeviceDetail(arg);
@@ -214,6 +227,7 @@ function refreshCurrentView() {
 
 window.app.setView = setView;
 window.app.setDeviceFilter = (k, v) => { deviceFilter[k] = v; setView("devices"); };
+window.app.setDeviceCategory = (catId) => { deviceFilter.category = catId; setView("devices"); };
 window.app.setEmployeeFilter = (k, v) => { employeeFilter[k] = v; setView("employees"); };
 
 // Exposed UI helpers
@@ -223,6 +237,7 @@ window.app.toast = toast;
 // --- Devices ---
 window.app.openDeviceForm = (id) => openDeviceForm(id, refreshCurrentView);
 window.app.submitDeviceForm = (id) => submitDeviceForm(id);
+window.app.updateDeviceFormAttrs = () => updateDeviceFormAttrs();
 window.app.printAssetLabel = (id) => printAssetLabel(id);
 window.app.closeReceiptPreview = () => closeReceiptPreview();
 window.app.printReceiptNow = () => printReceiptNow();

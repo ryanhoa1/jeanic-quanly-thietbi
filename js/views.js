@@ -1,4 +1,4 @@
-import { state, STATUS_META, DEPARTMENTS, CONDITIONS, DEVICE_TYPES, BRANDS } from './db.js';
+import { state, STATUS_META, DEPARTMENTS, CONDITIONS, DEVICE_TYPES, BRANDS, ASSET_CATEGORIES, CATEGORY_FIELDS, getCategoryId, getCategoryMeta } from './db.js';
 import { fmtVND, fmtDate, fmtDateTime, computeAlerts, computeDepreciation, warrantyInfo, repairTotal, esc } from './helpers.js';
 import { emptyState } from './ui.js';
 
@@ -111,9 +111,26 @@ export function renderDashboard() {
   `;
 }
 
+function categoryTabsHTML(activeCat) {
+  const tabs = [{ id: "all", label: "Tất cả", ico: "ph-squares-four" }, ...ASSET_CATEGORIES.map(c => ({ id: c.id, label: c.label, ico: c.ico }))];
+  return `
+    <div class="cat-tabs">
+      ${tabs.map(t => `
+        <button class="cat-tab ${(activeCat || 'all') === t.id ? 'active' : ''}" onclick="app.setDeviceCategory('${t.id}')">
+          <i class="ph ${t.ico}"></i> ${t.label}
+        </button>
+      `).join("")}
+    </div>
+  `;
+}
+
 export function renderDevices(filter) {
   const q = filter.q.toLowerCase();
+  const activeCat = filter.category || "all";
+  const extraFields = activeCat !== "all" ? (CATEGORY_FIELDS[activeCat] || []) : [];
+
   const list = state.devices.filter(d => {
+    if (activeCat !== "all" && getCategoryId(d.type) !== activeCat) return false;
     if (filter.status !== "all" && d.status !== filter.status) return false;
     if (filter.dept !== "all" && d.dept !== filter.dept) return false;
     if (q && !(`${d.id} ${d.type} ${d.brand} ${d.holderName || ""}`.toLowerCase().includes(q))) return false;
@@ -122,7 +139,9 @@ export function renderDevices(filter) {
   
   const alertIds = new Set(computeAlerts().map(a => a.device.id));
 
-  let html = `
+  let html = categoryTabsHTML(activeCat);
+
+  html += `
     <div class="toolbar">
       <div class="input-wrap" style="flex:1; min-width: 250px;">
         <i class="ph ph-magnifying-glass"></i>
@@ -153,6 +172,7 @@ export function renderDevices(filter) {
           <tr>
             <th>Mã TB</th>
             <th>Loại / Thương hiệu</th>
+            ${extraFields.map(f => `<th>${esc(f.label)}</th>`).join("")}
             <th>Tình trạng</th>
             <th>Trạng thái</th>
             <th>Người dùng</th>
@@ -164,6 +184,7 @@ export function renderDevices(filter) {
             <tr class="rowclick" onclick="app.setView('device','${d.id}')">
               <td><b style="color:#fff; font-family: var(--font-mono);">${esc(d.id)}</b></td>
               <td><div class="cell-title">${esc(d.type)}</div><div class="cell-sub">${esc(d.brand)}</div></td>
+              ${extraFields.map(f => `<td class="cell-sub">${esc((d.attrs && d.attrs[f.key]) || "—")}</td>`).join("")}
               <td>${esc(d.condition)}</td>
               <td><span class="pill ${STATUS_META[d.status]?.pill || 'pill-slate'}">${esc(d.status)}</span></td>
               <td>${esc(d.holderName || "—")}</td>
@@ -194,6 +215,9 @@ export function renderDeviceDetail(id) {
   const war = warrantyInfo(d);
   const rTotal = repairTotal(d);
   const history = d.history || [];
+  const catId = getCategoryId(d.type);
+  const catMeta = getCategoryMeta(catId);
+  const attrFields = (CATEGORY_FIELDS[catId] || []).filter(f => d.attrs && d.attrs[f.key]);
 
   return `
     <div style="margin-bottom:16px;">
@@ -210,6 +234,7 @@ export function renderDeviceDetail(id) {
             </div>
           </div>
           <div class="kv"><b>Mã thiết bị</b><span style="font-family:var(--font-mono);">${esc(d.id)}</span></div>
+          <div class="kv"><b>Nhóm tài sản</b><span class="pill pill-slate"><i class="ph ${catMeta?.ico || 'ph-question'}"></i> ${esc(catMeta?.label || "Khác")}</span></div>
           <div class="kv"><b>Loại</b><span>${esc(d.type)}</span></div>
           <div class="kv"><b>Thương hiệu</b><span>${esc(d.brand)}</span></div>
           <div class="kv"><b>Tình trạng</b><span>${esc(d.condition)}</span></div>
@@ -221,6 +246,11 @@ export function renderDeviceDetail(id) {
             <b style="font-size:12.5px; color:var(--text-muted); display:block; margin-bottom:8px;">Thông số kỹ thuật</b>
             <div class="specs-box">${esc(d.specs || "—")}</div>
           </div>
+          ${attrFields.length > 0 ? `
+          <div style="margin-top:16px;">
+            <b style="font-size:12.5px; color:var(--text-muted); display:block; margin-bottom:8px;">Thông số chuyên biệt (${esc(catMeta?.label || "")})</b>
+            ${attrFields.map(f => `<div class="kv"><b>${esc(f.label)}</b><span>${esc(d.attrs[f.key])}</span></div>`).join("")}
+          </div>` : ""}
         </div>
 
         <div class="panel">

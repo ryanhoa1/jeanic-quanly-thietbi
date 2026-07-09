@@ -1,4 +1,4 @@
-import { state } from './db.js';
+import { state, getCategoryId, getCategoryMeta } from './db.js';
 import { fmtDate, fmtDateTime } from './helpers.js';
 import { toast } from './ui.js';
 
@@ -19,16 +19,20 @@ function autoWidth(rows) {
 }
 
 function devicesSheetRows(list) {
-  const header = ["STT", "Mã TB", "Loại thiết bị", "Thương hiệu", "Thông số kỹ thuật", "Tình trạng", "Trạng thái",
+  const header = ["STT", "Mã TB", "Nhóm tài sản", "Loại thiết bị", "Thương hiệu", "Thông số kỹ thuật", "Thông số chuyên biệt", "Tình trạng", "Trạng thái",
     "Người đang giữ", "Bộ phận", "Ngày nhập kho", "Ngày mua", "Giá mua (₫)", "Nhà cung cấp", "Số hoá đơn",
     "Bảo hành (tháng)", "Vòng đời (năm)", "Ghi chú"];
   const rows = [header];
-  list.forEach((d, i) => rows.push([
-    i + 1, d.id, d.type, d.brand, d.specs || "", d.condition, d.status,
-    d.holderName || "", d.dept || "", fmtDate(d.importDate), fmtDate(d.purchaseDate),
-    d.purchasePrice || 0, d.vendor || "", d.invoiceNo || "",
-    d.warrantyMonths || 0, d.usefulLifeYears || 0, d.note || ""
-  ]));
+  list.forEach((d, i) => {
+    const catLabel = getCategoryMeta(getCategoryId(d.type))?.label || "Khác";
+    const attrsText = d.attrs ? Object.entries(d.attrs).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join("; ") : "";
+    rows.push([
+      i + 1, d.id, catLabel, d.type, d.brand, d.specs || "", attrsText, d.condition, d.status,
+      d.holderName || "", d.dept || "", fmtDate(d.importDate), fmtDate(d.purchaseDate),
+      d.purchasePrice || 0, d.vendor || "", d.invoiceNo || "",
+      d.warrantyMonths || 0, d.usefulLifeYears || 0, d.note || ""
+    ]);
+  });
   return rows;
 }
 
@@ -57,7 +61,7 @@ function historySheetRows() {
 
 function inventoryChecklistRows(list) {
   const s = state.settings || {};
-  const header = ["STT", "Mã TB", "Loại / Thương hiệu", "Bộ phận / Vị trí", "Người sử dụng",
+  const header = ["STT", "Mã TB", "Nhóm tài sản", "Loại / Thương hiệu", "Bộ phận / Vị trí", "Người sử dụng",
     "Tình trạng (sổ sách)", "Kết quả kiểm kê (Đủ / Thiếu / Hỏng)", "Ghi chú thực tế", "Người kiểm kê ký xác nhận"];
   const rows = [
     [s.companyName || "CÔNG TY TNHH JEANIC GARMENT"],
@@ -66,12 +70,15 @@ function inventoryChecklistRows(list) {
     [],
     header
   ];
-  list.forEach((d, i) => rows.push([
-    i + 1, d.id, `${d.type} - ${d.brand}`, d.dept || "Trong kho", d.holderName || "—", d.condition, "", "", ""
-  ]));
+  list.forEach((d, i) => {
+    const catLabel = getCategoryMeta(getCategoryId(d.type))?.label || "Khác";
+    rows.push([
+      i + 1, d.id, catLabel, `${d.type} - ${d.brand}`, d.dept || "Trong kho", d.holderName || "—", d.condition, "", "", ""
+    ]);
+  });
   rows.push([]);
-  rows.push(["", "", "", "", "", "", "Đại diện phòng IT", "", "Đại diện Ban Giám đốc"]);
-  rows.push(["", "", "", "", "", "", "(Ký, ghi rõ họ tên)", "", "(Ký, ghi rõ họ tên)"]);
+  rows.push(["", "", "", "", "", "", "", "Đại diện phòng IT", "", "Đại diện Ban Giám đốc"]);
+  rows.push(["", "", "", "", "", "", "", "(Ký, ghi rõ họ tên)", "", "(Ký, ghi rõ họ tên)"]);
   return rows;
 }
 
@@ -114,9 +121,9 @@ export function exportInventoryChecklist(list) {
   if (!ensureXLSX()) return;
   const rows = inventoryChecklistRows(list || state.devices);
   const merges = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 8 } },
-    { s: { r: 2, c: 0 }, e: { r: 2, c: 8 } }
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 9 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 9 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: 9 } }
   ];
   const wb = window.XLSX.utils.book_new();
   window.XLSX.utils.book_append_sheet(wb, sheetFromRows(rows, merges), "Phiếu kiểm kê");
@@ -131,9 +138,9 @@ export function exportFullReport() {
   window.XLSX.utils.book_append_sheet(wb, sheetFromRows(employeesSheetRows(state.employees)), "Danh sách nhân viên");
   window.XLSX.utils.book_append_sheet(wb, sheetFromRows(historySheetRows()), "Lịch sử nghiệp vụ");
   const merges = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 8 } },
-    { s: { r: 2, c: 0 }, e: { r: 2, c: 8 } }
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 9 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 9 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: 9 } }
   ];
   window.XLSX.utils.book_append_sheet(wb, sheetFromRows(inventoryChecklistRows(state.devices), merges), "Phiếu kiểm kê");
   download(wb, `Bao-cao-tong-hop-CNTT-${todayStamp()}.xlsx`);

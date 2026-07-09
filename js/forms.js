@@ -1,4 +1,4 @@
-import { state, DEPARTMENTS, CONDITIONS, DEVICE_TYPES, BRANDS, STATUS_META } from './db.js';
+import { state, DEPARTMENTS, CONDITIONS, DEVICE_TYPES, BRANDS, STATUS_META, ASSET_CATEGORIES, CATEGORY_FIELDS, getCategoryId, getCategoryMeta } from './db.js';
 import {
   addDeviceRecord, updateDeviceRecord, addEmployeeRecord, updateEmployeeRecord,
   handoverDevice, returnDevice, transferDevice, retireDevice, addRepairRecord,
@@ -13,6 +13,40 @@ function opt(list, selected) {
   return list.map(v => `<option value="${esc(v)}" ${v === selected ? 'selected' : ''}>${esc(v)}</option>`).join("");
 }
 
+function typeOptionsGrouped(selected) {
+  return ASSET_CATEGORIES.map(c => `
+    <optgroup label="${esc(c.label)}">
+      ${c.types.map(t => `<option value="${esc(t)}" ${t === selected ? 'selected' : ''}>${esc(t)}</option>`).join("")}
+    </optgroup>
+  `).join("");
+}
+
+function attrFieldsHTML(type, attrs) {
+  const catId = getCategoryId(type);
+  const fields = CATEGORY_FIELDS[catId] || [];
+  if (fields.length === 0) {
+    return `<div class="attrs-empty">Nhóm tài sản này không có thông số chuyên biệt.</div>`;
+  }
+  return `
+    <label class="attrs-label">Thông số chuyên biệt — ${esc(getCategoryMeta(catId)?.label || "")}</label>
+    <div class="field-row" style="flex-wrap:wrap;">
+      ${fields.map(f => `
+        <div class="field" style="min-width:180px; flex:1;">
+          <label>${esc(f.label)}</label>
+          <input type="text" data-attr-key="${f.key}" class="attr-input" value="${esc((attrs && attrs[f.key]) || '')}">
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+export function updateDeviceFormAttrs() {
+  const typeEl = document.getElementById("fType");
+  const wrap = document.getElementById("fAttrsWrap");
+  if (!typeEl || !wrap) return;
+  wrap.innerHTML = attrFieldsHTML(typeEl.value, null);
+}
+
 // ---------- Device Form (Add / Edit) ----------
 export function openDeviceForm(id, refresh) {
   const editing = !!id;
@@ -23,8 +57,8 @@ export function openDeviceForm(id, refresh) {
     <div class="field-row">
       <div class="field">
         <label>Loại thiết bị</label>
-        <select id="fType">
-          ${opt(DEVICE_TYPES, d?.type)}
+        <select id="fType" onchange="app.updateDeviceFormAttrs()">
+          ${typeOptionsGrouped(d?.type)}
         </select>
       </div>
       <div class="field">
@@ -37,6 +71,9 @@ export function openDeviceForm(id, refresh) {
     <div class="field">
       <label>Thông số kỹ thuật</label>
       <textarea id="fSpecs" placeholder="VD: Dell Inspiron 15, i5-1355U, RAM 16GB, SSD 512GB">${esc(d?.specs || "")}</textarea>
+    </div>
+    <div class="field attrs-block" id="fAttrsWrap">
+      ${attrFieldsHTML(d?.type || DEVICE_TYPES[0], d?.attrs)}
     </div>
     <div class="field-row">
       <div class="field">
@@ -98,10 +135,17 @@ export function openDeviceForm(id, refresh) {
 }
 
 export async function submitDeviceForm(id) {
+  const attrs = {};
+  document.querySelectorAll('#fAttrsWrap .attr-input').forEach(inp => {
+    const key = inp.dataset.attrKey;
+    if (key) attrs[key] = inp.value.trim();
+  });
+
   const payload = {
     type: document.getElementById("fType").value,
     brand: document.getElementById("fBrand").value,
     specs: document.getElementById("fSpecs").value.trim(),
+    attrs,
     condition: document.getElementById("fCondition").value,
     importDate: document.getElementById("fImportDate").value,
     purchaseDate: document.getElementById("fPurchaseDate").value,

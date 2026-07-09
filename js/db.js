@@ -2,8 +2,72 @@ import { db, useFirebase } from './firebase-config.js';
 
 export const DEPARTMENTS = ["Ban Giám đốc","IT","Nhân sự (HR)","Kế toán","Kinh doanh","Plan (Kế hoạch)","Cắt (Cutting)","May (Sewing)","Hoàn thiện (Finishing)","QA/QC","Kho (Warehouse)","Bảo trì (Maintenance)","Xuất nhập khẩu","Khác"];
 export const CONDITIONS = ["Mới","Tốt","Khá","Trung bình","Hỏng nhẹ","Hỏng nặng"];
-export const DEVICE_TYPES = ["Laptop","Laptop + Sạc","Màn hình","Bàn phím","Chuột không dây","Chuột có dây","Tai nghe","Webcam","Máy in","Router/Switch","USB/Ổ cứng di động","Balo/Túi laptop","Sạc/Cáp","Khác"];
-export const BRANDS = ["Dell","HP","Lenovo","Asus","Acer","Apple","Logitech","EBLUE","Samsung","LG","Canon","TP-Link","Khác"];
+export const DEVICE_TYPES = ["Desktop","Laptop","Laptop + Sạc","Màn hình","Bàn phím","Chuột không dây","Chuột có dây","Tai nghe","Webcam","Camera","Máy in","Router/Switch","Điện thoại","Mực in/Hộp mực","USB/Ổ cứng di động","Balo/Túi laptop","Sạc/Cáp","Khác"];
+export const BRANDS = ["Dell","HP","Lenovo","Asus","Acer","Apple","Logitech","EBLUE","Samsung","LG","Canon","TP-Link","HIKVision","Kingston","Xiaomi","Khác"];
+
+// ---------- Asset Categories (GLPI-style grouping) ----------
+export const ASSET_CATEGORIES = [
+  { id: "computers", label: "Máy tính (Desktop/Laptop)", ico: "ph-desktop-tower", types: ["Desktop", "Laptop", "Laptop + Sạc"] },
+  { id: "monitors", label: "Màn hình", ico: "ph-monitor", types: ["Màn hình"] },
+  { id: "peripherals", label: "Thiết bị ngoại vi", ico: "ph-mouse", types: ["Bàn phím", "Chuột không dây", "Chuột có dây", "Tai nghe", "Webcam", "Camera"] },
+  { id: "printers", label: "Máy in", ico: "ph-printer", types: ["Máy in"] },
+  { id: "network", label: "Thiết bị mạng", ico: "ph-network", types: ["Router/Switch"] },
+  { id: "phones", label: "Điện thoại", ico: "ph-device-mobile", types: ["Điện thoại"] },
+  { id: "cartridges", label: "Mực in / Vật tư in", ico: "ph-drop", types: ["Mực in/Hộp mực"] },
+  { id: "consumables", label: "Vật tư tiêu hao", ico: "ph-package", types: ["USB/Ổ cứng di động", "Balo/Túi laptop", "Sạc/Cáp"] },
+  { id: "others", label: "Khác", ico: "ph-question", types: ["Khác"] }
+];
+
+export function getCategoryId(type) {
+  const cat = ASSET_CATEGORIES.find(c => c.types.includes(type));
+  return cat ? cat.id : "others";
+}
+
+export function getCategoryMeta(catId) {
+  return ASSET_CATEGORIES.find(c => c.id === catId) || null;
+}
+
+// Category-specific specification fields, stored per-device in `device.attrs`
+export const CATEGORY_FIELDS = {
+  computers: [
+    { key: "cpu", label: "CPU" },
+    { key: "ram", label: "RAM" },
+    { key: "storage", label: "Ổ cứng" },
+    { key: "os", label: "Hệ điều hành" },
+    { key: "serial", label: "Số Serial" }
+  ],
+  monitors: [
+    { key: "screenSize", label: "Kích thước (inch)" },
+    { key: "resolution", label: "Độ phân giải" },
+    { key: "panelType", label: "Loại tấm nền" },
+    { key: "serial", label: "Số Serial" }
+  ],
+  peripherals: [
+    { key: "connectType", label: "Kết nối (Có dây/Không dây/Bluetooth)" },
+    { key: "serial", label: "Số Serial" }
+  ],
+  printers: [
+    { key: "printType", label: "Loại in (Laser/Phun mực)" },
+    { key: "inkModel", label: "Mã mực / hộp mực dùng" },
+    { key: "serial", label: "Số Serial" }
+  ],
+  network: [
+    { key: "ip", label: "Địa chỉ IP" },
+    { key: "mac", label: "Địa chỉ MAC" },
+    { key: "serial", label: "Số Serial" }
+  ],
+  phones: [
+    { key: "imei", label: "IMEI" },
+    { key: "simNumber", label: "Số SIM" },
+    { key: "os", label: "Hệ điều hành" }
+  ],
+  cartridges: [
+    { key: "inkModel", label: "Mã mực" },
+    { key: "printerModel", label: "Dùng cho máy in" }
+  ],
+  consumables: [],
+  others: []
+};
 
 export const STATUS_META = {
   "Đang sử dụng": { pill: "pill-success" },
