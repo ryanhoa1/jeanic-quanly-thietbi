@@ -5,12 +5,15 @@ import {
   listAccounts, setAccountRole, setAccountActive, setAccountEmployeeLink,
   startMfaEnrollment, confirmMfaEnrollment, disableMfa, verifyMfaLoginToken
 } from './auth.js';
-import { loadAll, state, persistSettings, ASSET_CATEGORIES, getCategoryMeta } from './db.js';
+import { loadAll, state, persistSettings, ASSET_CATEGORIES, ASSET_GROUPS, devicesInScope, scopeMeta } from './db.js';
 import {
   renderDashboard, renderDevices, renderDeviceDetail,
   renderEmployees, renderEmployeeDetail, renderOps, renderReports, renderHistoryTable, renderSettings, renderAccountsTable,
   renderMyDevices, renderMyAccount
 } from './views.js';
+import {
+  downloadDeviceImportTemplate, triggerImportFilePicker, handleImportFileSelected, confirmDeviceImport
+} from './import.js';
 import { toast, openModal, closeModal } from './ui.js';
 import {
   openDeviceForm, submitDeviceForm, updateDeviceFormAttrs,
@@ -35,7 +38,8 @@ const NAV = [
   { grp: "Tổng quan", roles: ["admin"], items: [{ id: "dashboard", label: "Bảng điều khiển", ico: "ph-squares-four" }] },
   { grp: "Tài sản", roles: ["admin"], items: [
     { id: "devices", label: "Tất cả tài sản", ico: "ph-squares-four", cat: "all" },
-    ...ASSET_CATEGORIES.map(c => ({ id: "devices", label: c.label, ico: c.ico, cat: c.id }))
+    ...ASSET_GROUPS.map(g => ({ id: "devices", label: g.label, ico: g.ico, cat: "grp:" + g.id })),
+    ...ASSET_CATEGORIES.map(c => ({ id: "devices", label: c.label, ico: c.ico, cat: c.id, indent: true }))
   ]},
   { grp: "Nhân sự", roles: ["admin"], items: [{ id: "employees", label: "Nhân viên", ico: "ph-users" }] },
   { grp: "Nghiệp vụ", roles: ["admin"], items: [
@@ -178,7 +182,7 @@ function renderNav() {
         : (state.view === it.id);
       const onclick = isCat ? `app.setDeviceCategory('${it.cat}')` : `app.setView('${it.id}')`;
       return `
-        <button class="${active ? 'active' : ''} ${isCat ? 'nav-sub' : ''}" onclick="${onclick}">
+        <button class="${active ? 'active' : ''} ${isCat ? 'nav-sub' : ''}" ${it.indent ? 'style="padding-left:34px; font-size:13px;"' : ''} onclick="${onclick}">
           <i class="ph ${it.ico}"></i> ${it.label}
         </button>
       `;
@@ -212,11 +216,11 @@ function setView(view, arg) {
     content.innerHTML = renderDashboard();
   } else if (view === "devices") {
     actions.innerHTML = `<button class="btn btn-brand" onclick="app.openDeviceForm()"><i class="ph ph-plus"></i> Thêm thiết bị</button>`;
-    const catMeta = deviceFilter.category && deviceFilter.category !== "all" ? getCategoryMeta(deviceFilter.category) : null;
-    document.getElementById("pageTitle").textContent = catMeta ? catMeta.label : "Tất cả tài sản";
-    document.getElementById("pageDesc").textContent = catMeta
-      ? `Danh sách tài sản thuộc nhóm: ${catMeta.label}`
-      : PAGE_META.devices[1];
+    const scope = scopeMeta(deviceFilter.category);
+    document.getElementById("pageTitle").textContent = scope.kind === "all" ? "Tất cả tài sản" : scope.label;
+    document.getElementById("pageDesc").textContent = scope.kind === "all"
+      ? PAGE_META.devices[1]
+      : `Danh sách tài sản thuộc nhóm: ${scope.label}`;
     content.innerHTML = renderDevices(deviceFilter);
   } else if (view === "device") {
     content.innerHTML = renderDeviceDetail(arg);
@@ -253,8 +257,17 @@ function setView(view, arg) {
 function refreshCurrentView() {
   setView(state.view, state.currentId);
 }
+window.__deviceImportRefresh = refreshCurrentView;
 
 window.app.setView = setView;
+window.app.downloadDeviceImportTemplate = downloadDeviceImportTemplate;
+window.app.triggerImportFilePicker = triggerImportFilePicker;
+window.app.handleImportFileSelected = handleImportFileSelected;
+window.app.confirmDeviceImport = confirmDeviceImport;
+window.app.exportDevicesForCategory = (scopeId) => {
+  const scope = scopeMeta(scopeId);
+  exportDevicesExcel(devicesInScope(scopeId), scope.kind === "all" ? null : scope.label);
+};
 window.app.setDeviceFilter = (k, v) => { deviceFilter[k] = v; setView("devices"); };
 window.app.setDeviceCategory = (catId) => { deviceFilter.category = catId; setView("devices"); };
 window.app.setEmployeeFilter = (k, v) => { employeeFilter[k] = v; setView("employees"); };
