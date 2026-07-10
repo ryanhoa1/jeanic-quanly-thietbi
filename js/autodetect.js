@@ -205,8 +205,7 @@ function Get-OneMachineConfig {
   ) | Where-Object { $_ }
   $attrsText = ($attrsParts -join "; ")
 
-  $ghiChu = "Tu dong quet luc $(Get-Date -Format 'yyyy-MM-dd HH:mm') tren may '$Computer'" `
-    + $(if ($nic) { " - IP: $($nic.IPAddress[0]) - MAC: $($nic.MACAddress)" } else { "" })
+  $ghiChu = "Tu dong quet luc $(Get-Date -Format 'yyyy-MM-dd HH:mm') tren may '$Computer'" + $(if ($nic) { " - IP: $($nic.IPAddress[0]) - MAC: $($nic.MACAddress)" } else { "" })
 
   [PSCustomObject]@{
     "Mã TB (để trống để tự sinh mã)"                                     = ""
