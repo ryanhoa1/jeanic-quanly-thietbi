@@ -194,11 +194,11 @@ function Get-OneMachineConfig {
   $manufacturer = $cs.Manufacturer.Trim()
   $model = $cs.Model.Trim()
 
-  $specs = "$manufacturer $model, $($cpu.Name.Trim()), RAM ${ramGB}GB" + $(if ($diskInfo) { ", $diskInfo" } else { "" })
+  $specs = "$manufacturer $model, $($cpu.Name.Trim()), RAM $($ramGB)GB" + $(if ($diskInfo) { ", $diskInfo" } else { "" })
 
   $attrsParts = @(
     "cpu: $($cpu.Name.Trim())",
-    "ram: ${ramGB}GB",
+    "ram: $($ramGB)GB",
     $(if ($diskInfo) { "storage: $diskInfo" }),
     "os: $($os.Caption.Trim()) $($os.Version)",
     "serial: $($bios.SerialNumber.Trim())"
