@@ -140,6 +140,9 @@
   </div>
 
   <!-- Modal -->
+  <!-- Hidden input used by the device import feature (js/import.js) -->
+  <input type="file" id="deviceImportFileInput" accept=".xlsx,.xls" style="display:none;" onchange="app.handleImportFileSelected(event)">
+
   <div id="modal-root">
     <div class="modal-box" id="modalBox"></div>
   </div>

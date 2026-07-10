@@ -275,6 +275,13 @@ table.data tr.rowclick:hover td { background: rgba(255,255,255,0.02); }
 .cat-tab:hover { color: #fff; border-color: var(--text-muted); }
 .cat-tab.active { background: var(--brand-primary-glass); color: var(--brand-primary); border-color: var(--brand-primary); }
 
+/* Higher-level grouping row (Tài sản chính / Linh kiện / Phụ kiện / Khác)
+   shown above the specific-category tabs. Slightly bolder so it reads as
+   the parent level of the hierarchy. */
+.cat-tabs-groups { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px dashed var(--border-color); }
+.cat-tabs-groups .cat-tab { font-weight: 600; }
+.cat-tabs-groups .cat-tab.active { background: var(--brand-primary); color: #fff; border-color: var(--brand-primary); }
+
 /* Category-specific attribute fields in the device form */
 .attrs-block { border-top: 1px dashed var(--border-color); padding-top: 12px; margin-top: 4px; }
 .attrs-label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 10px; }

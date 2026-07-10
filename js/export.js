@@ -93,12 +93,23 @@ function download(wb, filename) {
   window.XLSX.writeFile(wb, filename);
 }
 
-export function exportDevicesExcel(list) {
+function slugify(s) {
+  return String(s || "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/gi, "d")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .toLowerCase();
+}
+
+export function exportDevicesExcel(list, categoryLabel) {
   if (!ensureXLSX()) return;
   const wb = window.XLSX.utils.book_new();
-  window.XLSX.utils.book_append_sheet(wb, sheetFromRows(devicesSheetRows(list || state.devices)), "Danh sách thiết bị");
-  download(wb, `Danh-sach-thiet-bi-${todayStamp()}.xlsx`);
-  toast("Đã xuất danh sách thiết bị (Excel)");
+  const sheetTitle = (categoryLabel ? `DS ${categoryLabel}` : "Danh sách thiết bị").slice(0, 31);
+  window.XLSX.utils.book_append_sheet(wb, sheetFromRows(devicesSheetRows(list || state.devices)), sheetTitle);
+  const slug = categoryLabel ? `-${slugify(categoryLabel)}` : "";
+  download(wb, `Danh-sach-thiet-bi${slug}-${todayStamp()}.xlsx`);
+  toast(`Đã xuất ${categoryLabel ? categoryLabel.toLowerCase() : "danh sách thiết bị"} (Excel)`);
 }
 
 export function exportEmployeesExcel(list) {

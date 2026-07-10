@@ -6,16 +6,29 @@ export const DEVICE_TYPES = ["Desktop","Laptop","Laptop + Sạc","Màn hình","B
 export const BRANDS = ["Dell","HP","Lenovo","Asus","Acer","Apple","Logitech","EBLUE","Samsung","LG","Canon","TP-Link","HIKVision","Kingston","Xiaomi","Khác"];
 
 // ---------- Asset Categories (GLPI-style grouping) ----------
+// Each category also belongs to a higher-level "group" (see ASSET_GROUPS
+// below): tài sản chính (assets) / linh kiện (components) / phụ kiện
+// (accessories) / khác (other). This lets the Devices page and the
+// Excel export/import tools operate at either level of granularity.
 export const ASSET_CATEGORIES = [
-  { id: "computers", label: "Máy tính (Desktop/Laptop)", ico: "ph-desktop-tower", types: ["Desktop", "Laptop", "Laptop + Sạc"] },
-  { id: "monitors", label: "Màn hình", ico: "ph-monitor", types: ["Màn hình"] },
-  { id: "peripherals", label: "Thiết bị ngoại vi", ico: "ph-mouse", types: ["Bàn phím", "Chuột không dây", "Chuột có dây", "Combo Bàn phím + Chuột", "Tai nghe", "Webcam", "Camera"] },
-  { id: "printers", label: "Máy in", ico: "ph-printer", types: ["Máy in"] },
-  { id: "network", label: "Thiết bị mạng", ico: "ph-network", types: ["Router/Switch"] },
-  { id: "phones", label: "Điện thoại", ico: "ph-device-mobile", types: ["Điện thoại"] },
-  { id: "cartridges", label: "Mực in / Vật tư in", ico: "ph-drop", types: ["Mực in/Hộp mực"] },
-  { id: "consumables", label: "Vật tư tiêu hao", ico: "ph-package", types: ["USB/Ổ cứng di động", "Balo/Túi laptop", "Sạc/Cáp"] },
-  { id: "others", label: "Khác", ico: "ph-question", types: ["Khác"] }
+  { id: "computers", label: "Máy tính (Desktop/Laptop)", ico: "ph-desktop-tower", group: "assets", types: ["Desktop", "Laptop", "Laptop + Sạc"] },
+  { id: "monitors", label: "Màn hình", ico: "ph-monitor", group: "assets", types: ["Màn hình"] },
+  { id: "printers", label: "Máy in", ico: "ph-printer", group: "assets", types: ["Máy in"] },
+  { id: "network", label: "Thiết bị mạng", ico: "ph-network", group: "assets", types: ["Router/Switch"] },
+  { id: "phones", label: "Điện thoại", ico: "ph-device-mobile", group: "assets", types: ["Điện thoại"] },
+  { id: "cartridges", label: "Mực in / Vật tư in", ico: "ph-drop", group: "components", types: ["Mực in/Hộp mực"] },
+  { id: "consumables", label: "Vật tư tiêu hao", ico: "ph-package", group: "components", types: ["USB/Ổ cứng di động", "Sạc/Cáp"] },
+  { id: "peripherals", label: "Thiết bị ngoại vi", ico: "ph-mouse", group: "accessories", types: ["Bàn phím", "Chuột không dây", "Chuột có dây", "Combo Bàn phím + Chuột", "Tai nghe", "Webcam", "Camera"] },
+  { id: "bags", label: "Balo / Túi đựng", ico: "ph-bag", group: "accessories", types: ["Balo/Túi laptop"] },
+  { id: "others", label: "Khác", ico: "ph-question", group: "other", types: ["Khác"] }
+];
+
+// Higher-level groupings shown above the category tabs / in the sidebar.
+export const ASSET_GROUPS = [
+  { id: "assets", label: "Tài sản chính", ico: "ph-desktop-tower", desc: "Thiết bị giá trị cao, theo dõi khấu hao, bảo hành, người giữ riêng từng cái" },
+  { id: "components", label: "Linh kiện", ico: "ph-hard-drives", desc: "Vật tư/linh kiện đi kèm hoặc tiêu hao theo thời gian" },
+  { id: "accessories", label: "Phụ kiện", ico: "ph-mouse", desc: "Thiết bị ngoại vi và phụ kiện đi kèm tài sản chính" },
+  { id: "other", label: "Khác", ico: "ph-question", desc: "Chưa phân loại vào nhóm nào" }
 ];
 
 export function getCategoryId(type) {
@@ -25,6 +38,54 @@ export function getCategoryId(type) {
 
 export function getCategoryMeta(catId) {
   return ASSET_CATEGORIES.find(c => c.id === catId) || null;
+}
+
+export function getGroupMeta(groupId) {
+  return ASSET_GROUPS.find(g => g.id === groupId) || null;
+}
+
+export function getCategoryGroup(catId) {
+  return getCategoryMeta(catId)?.group || null;
+}
+
+export function categoriesInGroup(groupId) {
+  return ASSET_CATEGORIES.filter(c => c.group === groupId);
+}
+
+export function isGroupScope(scopeId) {
+  return typeof scopeId === "string" && scopeId.startsWith("grp:");
+}
+
+// A "scope" is any of: "all", a specific category id (e.g. "computers"),
+// or a group id prefixed with "grp:" (e.g. "grp:accessories"). This single
+// id space is used throughout the Devices page and the Excel export/import
+// tools so the same buttons work whether the user is looking at everything,
+// one group (tài sản/linh kiện/phụ kiện), or one specific category.
+export function scopeMeta(scopeId) {
+  if (!scopeId || scopeId === "all") {
+    return { kind: "all", id: "all", label: null, ico: "ph-squares-four", catIds: ASSET_CATEGORIES.map(c => c.id) };
+  }
+  if (isGroupScope(scopeId)) {
+    const groupId = scopeId.slice(4);
+    const g = getGroupMeta(groupId);
+    const cats = categoriesInGroup(groupId);
+    return { kind: "group", id: scopeId, groupId, label: g?.label || groupId, ico: g?.ico || "ph-folder", catIds: cats.map(c => c.id) };
+  }
+  const meta = getCategoryMeta(scopeId);
+  return { kind: "category", id: scopeId, label: meta?.label || scopeId, ico: meta?.ico || "ph-cube", catIds: meta ? [scopeId] : [] };
+}
+
+export function devicesInScope(scopeId) {
+  const scope = scopeMeta(scopeId);
+  if (scope.kind === "all") return state.devices;
+  return state.devices.filter(d => scope.catIds.includes(getCategoryId(d.type)));
+}
+
+// Kept for any older call sites: behaves like devicesInScope but only ever
+// matches a single category id (no group support).
+export function devicesInCategory(catId) {
+  if (!catId || catId === "all") return state.devices;
+  return state.devices.filter(d => getCategoryId(d.type) === catId);
 }
 
 // Category-specific specification fields, stored per-device in `device.attrs`
@@ -66,6 +127,7 @@ export const CATEGORY_FIELDS = {
     { key: "printerModel", label: "Dùng cho máy in" }
   ],
   consumables: [],
+  bags: [],
   others: []
 };
 

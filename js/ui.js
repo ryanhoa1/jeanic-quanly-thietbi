@@ -12,8 +12,9 @@ export function toast(msg, type = "success") {
   setTimeout(() => el.remove(), 4000);
 }
 
-export function openModal(title, bodyHtml, footHtml) {
+export function openModal(title, bodyHtml, footHtml, maxWidth) {
   const modalBox = document.getElementById("modalBox");
+  modalBox.style.maxWidth = maxWidth || ""; // "" restores the default 650px from CSS
   modalBox.innerHTML = `
     <div class="modal-head">
       <h3>${title}</h3>

@@ -1,4 +1,4 @@
-import { state, STATUS_META, DEPARTMENTS, CONDITIONS, DEVICE_TYPES, BRANDS, ASSET_CATEGORIES, CATEGORY_FIELDS, getCategoryId, getCategoryMeta } from './db.js';
+import { state, STATUS_META, DEPARTMENTS, CONDITIONS, DEVICE_TYPES, BRANDS, ASSET_CATEGORIES, ASSET_GROUPS, CATEGORY_FIELDS, getCategoryId, getCategoryMeta, getCategoryGroup, scopeMeta } from './db.js';
 import { fmtVND, fmtDate, fmtDateTime, computeAlerts, computeDepreciation, warrantyInfo, repairTotal, esc } from './helpers.js';
 import { emptyState } from './ui.js';
 
@@ -112,11 +112,35 @@ export function renderDashboard() {
 }
 
 function categoryTabsHTML(activeCat) {
-  const tabs = [{ id: "all", label: "Tất cả", ico: "ph-squares-four" }, ...ASSET_CATEGORIES.map(c => ({ id: c.id, label: c.label, ico: c.ico }))];
+  const cat = activeCat || "all";
+  // Which of the 3 groups (tài sản chính / linh kiện / phụ kiện) is active,
+  // derived either from a group scope directly ("grp:accessories") or from
+  // the group that the currently-selected single category belongs to.
+  const activeGroupId = cat.startsWith("grp:") ? cat.slice(4) : (cat !== "all" ? getCategoryGroup(cat) : null);
+
+  const groupTabs = [
+    { id: "all", label: "Tất cả", ico: "ph-squares-four" },
+    ...ASSET_GROUPS.map(g => ({ id: "grp:" + g.id, label: g.label, ico: g.ico }))
+  ];
+
+  const catsToShow = activeGroupId ? ASSET_CATEGORIES.filter(c => c.group === activeGroupId) : ASSET_CATEGORIES;
+  const allCatTabId = activeGroupId ? "grp:" + activeGroupId : "all";
+  const catTabs = [
+    { id: allCatTabId, label: activeGroupId ? "Tất cả nhóm này" : "Tất cả", ico: "ph-squares-four" },
+    ...catsToShow.map(c => ({ id: c.id, label: c.label, ico: c.ico }))
+  ];
+
   return `
+    <div class="cat-tabs cat-tabs-groups">
+      ${groupTabs.map(t => `
+        <button class="cat-tab ${(t.id === "all" ? !activeGroupId : t.id === "grp:" + activeGroupId) ? 'active' : ''}" onclick="app.setDeviceCategory('${t.id}')">
+          <i class="ph ${t.ico}"></i> ${t.label}
+        </button>
+      `).join("")}
+    </div>
     <div class="cat-tabs">
-      ${tabs.map(t => `
-        <button class="cat-tab ${(activeCat || 'all') === t.id ? 'active' : ''}" onclick="app.setDeviceCategory('${t.id}')">
+      ${catTabs.map(t => `
+        <button class="cat-tab ${cat === t.id ? 'active' : ''}" onclick="app.setDeviceCategory('${t.id}')">
           <i class="ph ${t.ico}"></i> ${t.label}
         </button>
       `).join("")}
@@ -127,10 +151,13 @@ function categoryTabsHTML(activeCat) {
 export function renderDevices(filter) {
   const q = filter.q.toLowerCase();
   const activeCat = filter.category || "all";
-  const extraFields = activeCat !== "all" ? (CATEGORY_FIELDS[activeCat] || []) : [];
+  const scope = scopeMeta(activeCat);
+  // Extra spec columns (CPU/RAM, IMEI, etc.) only make sense for a single
+  // category — a group can mix several category shapes, so no extra columns.
+  const extraFields = scope.kind === "category" ? (CATEGORY_FIELDS[activeCat] || []) : [];
 
   const list = state.devices.filter(d => {
-    if (activeCat !== "all" && getCategoryId(d.type) !== activeCat) return false;
+    if (scope.kind !== "all" && !scope.catIds.includes(getCategoryId(d.type))) return false;
     if (filter.status !== "all" && d.status !== filter.status) return false;
     if (filter.dept !== "all" && d.dept !== filter.dept) return false;
     if (q && !(`${d.id} ${d.type} ${d.brand} ${d.holderName || ""}`.toLowerCase().includes(q))) return false;
@@ -155,8 +182,14 @@ export function renderDevices(filter) {
         <option value="all">Tất cả bộ phận</option>
         ${DEPARTMENTS.map(dp => `<option value="${dp}" ${filter.dept === dp ? 'selected' : ''}>${dp}</option>`).join("")}
       </select>
-      <button class="btn btn-ghost" onclick="app.exportDevicesExcel()" title="Xuất danh sách thiết bị ra Excel">
+      <button class="btn btn-ghost" onclick="app.exportDevicesForCategory('${activeCat}')" title="Xuất ${scope.kind === 'all' ? 'toàn bộ danh sách' : ('nhóm &quot;' + scope.label + '&quot;')} ra Excel">
         <i class="ph ph-file-xls"></i> Xuất Excel
+      </button>
+      <button class="btn btn-ghost" onclick="app.downloadDeviceImportTemplate('${activeCat}')" title="Tải file mẫu để điền và nhập thiết bị">
+        <i class="ph ph-file-arrow-down"></i> Tải mẫu
+      </button>
+      <button class="btn btn-brand" onclick="app.triggerImportFilePicker('${activeCat}')" title="Nhập nhiều thiết bị cùng lúc từ file Excel">
+        <i class="ph ph-file-arrow-up"></i> Nhập Excel
       </button>
     </div>
     
@@ -669,6 +702,25 @@ export function renderReports() {
   return `
     <div class="panel">
       <div class="panel-head">
+        <h3><i class="ph ph-upload-simple"></i> Nhập danh sách thiết bị từ Excel</h3>
+      </div>
+      <p style="color:var(--text-secondary); font-size:13.5px; margin-bottom:16px;">
+        Thêm nhiều thiết bị cùng lúc thay vì nhập tay từng cái. Các bước:
+        <b>1)</b> Tải file mẫu, <b>2)</b> điền thông tin thiết bị vào sheet "Nhập thiết bị" (xem sheet "Danh mục tham chiếu" để lấy đúng mã nhân viên / giá trị hợp lệ),
+        <b>3)</b> chọn lại file đó để hệ thống kiểm tra và nhập vào.
+      </p>
+      <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        <button class="btn btn-ghost" onclick="app.downloadDeviceImportTemplate()">
+          <i class="ph ph-file-arrow-down"></i> 1. Tải file mẫu (Excel)
+        </button>
+        <button class="btn btn-brand" onclick="app.triggerImportFilePicker()">
+          <i class="ph ph-file-arrow-up"></i> 2. Chọn file đã điền để nhập
+        </button>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:24px;">
+      <div class="panel-head">
         <h3><i class="ph ph-file-xls"></i> Xuất báo cáo tổng hợp</h3>
       </div>
       <p style="color:var(--text-secondary); font-size:13.5px; margin-bottom:16px;">
@@ -679,12 +731,44 @@ export function renderReports() {
       </button>
     </div>
 
+    <div class="panel" style="margin-top:24px;">
+      <div class="panel-head">
+        <h3><i class="ph ph-folders"></i> Xuất / Nhập theo nhóm tài sản</h3>
+      </div>
+      <p style="color:var(--text-secondary); font-size:13.5px; margin-bottom:16px;">
+        Tài sản được chia làm 3 nhóm lớn — <b>Tài sản chính</b> (máy tính, màn hình, máy in, thiết bị mạng, điện thoại),
+        <b>Linh kiện</b> (mực in, vật tư tiêu hao) và <b>Phụ kiện</b> (chuột, bàn phím, tai nghe, balo/túi…).
+        Xuất hoặc nhập riêng từng nhóm, hoặc vào mục <b>Tất cả tài sản</b> để thao tác theo từng loại thiết bị cụ thể.
+      </p>
+      <div class="tiles">
+        ${ASSET_GROUPS.map(g => `
+          <div class="tile" style="cursor:default;">
+            <div class="ico"><i class="ph ${g.ico}"></i></div>
+            <h4>${g.label}</h4>
+            <p>${g.desc}</p>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+              <button class="btn btn-sm btn-ghost" onclick="app.exportDevicesForCategory('grp:${g.id}')" title="Xuất nhóm ${esc(g.label)} ra Excel">
+                <i class="ph ph-file-xls"></i> Xuất Excel
+              </button>
+              <button class="btn btn-sm btn-brand" onclick="app.triggerImportFilePicker('grp:${g.id}')" title="Nhập thiết bị vào nhóm ${esc(g.label)} từ Excel">
+                <i class="ph ph-file-arrow-up"></i> Nhập Excel
+              </button>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+
     <div class="tiles" style="margin-top:24px;">
-      <button class="tile" onclick="app.exportDevicesExcel()">
+      <div class="tile" style="cursor:default;">
         <div class="ico"><i class="ph ph-laptop"></i></div>
         <h4>Danh sách thiết bị</h4>
-        <p>Xuất toàn bộ ${total} thiết bị: loại, tình trạng, người giữ, giá trị, bảo hành… ra Excel.</p>
-      </button>
+        <p>Toàn bộ ${total} thiết bị: loại, tình trạng, người giữ, giá trị, bảo hành… </p>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+          <button class="btn btn-sm btn-ghost" onclick="app.exportDevicesExcel()"><i class="ph ph-file-xls"></i> Xuất Excel</button>
+          <button class="btn btn-sm btn-brand" onclick="app.triggerImportFilePicker()"><i class="ph ph-file-arrow-up"></i> Nhập Excel</button>
+        </div>
+      </div>
       <button class="tile" onclick="app.exportEmployeesExcel()">
         <div class="ico"><i class="ph ph-users"></i></div>
         <h4>Danh sách nhân viên</h4>
