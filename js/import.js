@@ -1,7 +1,6 @@
 import {
   state, DEPARTMENTS, CONDITIONS, DEVICE_TYPES, BRANDS, STATUS_META,
-  CATEGORY_FIELDS, ASSET_CATEGORIES, getCategoryId, scopeMeta,
-  addDeviceRecord, persistDevices, persistMeta
+  CATEGORY_FIELDS, getCategoryId, addDeviceRecord, persistDevices, persistMeta
 } from './db.js';
 import { esc, todayISO, pad3 } from './helpers.js';
 import { toast, openModal, closeModal } from './ui.js';
@@ -48,52 +47,26 @@ const IMPORT_COLUMNS = [
 // ---------------------------------------------------------------------------
 // 1) EXPORT TEMPLATE — file mẫu để người dùng điền thông tin thiết bị
 // ---------------------------------------------------------------------------
-function slugify(s) {
-  return String(s || "")
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/đ/gi, "d")
-    .replace(/[^a-zA-Z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "")
-    .toLowerCase();
-}
-
-// Returns { catId, label, types } describing the scope a template/import is
-// restricted to. catId "all" (or falsy) means no restriction. catId can also
-// be a group id like "grp:accessories", covering every category in that
-// group (Tài sản chính / Linh kiện / Phụ kiện).
-function categoryScope(catId) {
-  const scope = scopeMeta(catId);
-  if (scope.kind === "all") return { catId: "all", label: null, types: DEVICE_TYPES };
-  const types = scope.catIds.flatMap(id => ASSET_CATEGORIES.find(c => c.id === id)?.types || []);
-  return { catId: scope.id, label: scope.label, types: types.length ? types : DEVICE_TYPES };
-}
-
-export function downloadDeviceImportTemplate(catId) {
+export function downloadDeviceImportTemplate() {
   if (!ensureXLSX()) return;
-  const scope = categoryScope(catId);
-  const exampleType = scope.types[0] || DEVICE_TYPES[0];
 
   const header = IMPORT_COLUMNS.map(c => c.header);
   const exampleRows = [
-    ["", exampleType, "Dell", "Ví dụ mô tả thông số kỹ thuật", "", "Mới", "Trong kho", "", todayISO(), todayISO(), 0, "", "", 12, 3, 0, "Ví dụ — hãy xoá dòng này trước khi nhập dữ liệu thật"],
-    ["", exampleType, "Logitech", "Ví dụ mô tả thông số kỹ thuật", "", "Tốt", "Đang sử dụng", "NV001", todayISO(), todayISO(), 0, "", "", 12, 2, 0, "Ví dụ — hãy xoá dòng này trước khi nhập dữ liệu thật"]
+    ["", "Laptop + Sạc", "Dell", "Dell Latitude 5440, i5-1335U, RAM 16GB, SSD 512GB", "serial: DL-XJ29K1", "Mới", "Trong kho", "", todayISO(), todayISO(), 18500000, "Thế Giới Di Động", "HD-2026-0001", 24, 3, 1000000, "Ví dụ — hãy xoá dòng này trước khi nhập dữ liệu thật"],
+    ["", "Chuột không dây", "Logitech", "Logitech M331 Silent", "connectType: Không dây", "Tốt", "Đang sử dụng", "NV001", todayISO(), todayISO(), 350000, "Phong Vũ", "HD-2026-0002", 12, 2, 0, "Ví dụ — hãy xoá dòng này trước khi nhập dữ liệu thật"]
   ];
   const rows = [header, ...exampleRows];
 
   const wsMain = window.XLSX.utils.aoa_to_sheet(rows);
   wsMain["!cols"] = autoWidth(rows);
 
-  // Reference sheet: valid values for every dropdown-like column, restricted
-  // to the current category scope when the template was requested from a
-  // specific asset category tab. Includes the current employee list too, so
-  // people can copy-paste the correct Mã NV.
+  // Reference sheet: valid values for every dropdown-like column, plus the
+  // current employee list, so people can copy-paste the correct Mã NV.
   const refRows = [
-    [scope.catId === "all"
-      ? "DANH MỤC THAM CHIẾU — dùng để điền đúng giá trị ở sheet 'Nhập thiết bị'"
-      : `DANH MỤC THAM CHIẾU — nhóm tài sản: ${scope.label} (dùng để điền đúng giá trị ở sheet 'Nhập thiết bị')`],
+    ["DANH MỤC THAM CHIẾU — dùng để điền đúng giá trị ở sheet 'Nhập thiết bị'"],
     [],
-    [scope.catId === "all" ? "Loại thiết bị hợp lệ" : `Loại thiết bị hợp lệ trong nhóm "${scope.label}"`],
-    ...scope.types.map(t => [t]),
+    ["Loại thiết bị hợp lệ"],
+    ...DEVICE_TYPES.map(t => [t]),
     [],
     ["Thương hiệu gợi ý (có thể nhập thương hiệu khác nếu không có trong danh sách)"],
     ...BRANDS.map(b => [b]),
@@ -117,9 +90,8 @@ export function downloadDeviceImportTemplate(catId) {
   const wb = window.XLSX.utils.book_new();
   window.XLSX.utils.book_append_sheet(wb, wsMain, "Nhập thiết bị");
   window.XLSX.utils.book_append_sheet(wb, wsRef, "Danh mục tham chiếu");
-  const slug = scope.catId !== "all" ? `-${slugify(scope.label)}` : "";
-  window.XLSX.writeFile(wb, `Mau-nhap-thiet-bi${slug}-${todayStamp()}.xlsx`);
-  toast(`Đã tải file mẫu nhập ${scope.catId === "all" ? "thiết bị" : scope.label.toLowerCase()}`);
+  window.XLSX.writeFile(wb, `Mau-nhap-thiet-bi-${todayStamp()}.xlsx`);
+  toast("Đã tải file mẫu nhập thiết bị");
 }
 
 // ---------------------------------------------------------------------------
@@ -183,8 +155,7 @@ function nextAvailableDeviceId(usedIds) {
 
 // Parses + validates every row, WITHOUT touching state yet. Returns a report
 // the user reviews before anything is actually imported.
-function buildImportReport(rawRows, categoryContext) {
-  const scope = categoryScope(categoryContext);
+function buildImportReport(rawRows) {
   const existingIds = new Set(state.devices.map(d => d.id));
   const seenInFileIds = new Set();
   const results = [];
@@ -206,11 +177,7 @@ function buildImportReport(rawRows, categoryContext) {
     if (allBlank) return;
 
     const type = findValue(DEVICE_TYPES, rawType);
-    if (!type) {
-      errors.push(`Loại thiết bị "${rawType || ""}" không hợp lệ`);
-    } else if (scope.catId !== "all" && !scope.types.includes(type)) {
-      errors.push(`Loại thiết bị "${type}" không thuộc nhóm "${scope.label}" — hãy nhập ở mục "Tất cả tài sản" hoặc đúng nhóm của nó`);
-    }
+    if (!type) errors.push(`Loại thiết bị "${rawType || ""}" không hợp lệ`);
 
     const brand = rawBrand ? String(rawBrand).trim() : "";
     if (!brand) errors.push("Thiếu Thương hiệu");
@@ -278,59 +245,71 @@ function buildImportReport(rawRows, categoryContext) {
 // ---------------------------------------------------------------------------
 // 3) UI: pick file -> preview -> confirm import
 // ---------------------------------------------------------------------------
-let importCategoryContext = "all";
-
-export function triggerImportFilePicker(catId) {
+export function triggerImportFilePicker() {
   if (!ensureXLSX()) return;
-  importCategoryContext = catId || "all";
   const input = document.getElementById("deviceImportFileInput");
   if (input) { input.value = ""; input.click(); }
 }
 
+function processImportRows(rawRows) {
+  if (rawRows.length === 0) {
+    toast("File không có dữ liệu để nhập", "err");
+    return;
+  }
+
+  const requiredHeaders = ["Loại thiết bị (*)", "Thương hiệu (*)", "Tình trạng (*)", "Trạng thái (*)"];
+  const firstRowKeys = Object.keys(rawRows[0]);
+  const missingHeaders = requiredHeaders.filter(h => !firstRowKeys.includes(h));
+  if (missingHeaders.length > 0) {
+    toast(`File không đúng định dạng mẫu — thiếu cột: ${missingHeaders.join(", ")}. Vui lòng tải lại file mẫu hoặc dùng script quét cấu hình.`, "err");
+    return;
+  }
+
+  const report = buildImportReport(rawRows);
+  showImportPreview(report);
+}
+
+// Accepts .xlsx/.xls (đã có sẵn) VÀ .csv — file .csv là định dạng xuất ra từ
+// script quét cấu hình tự động (js/autodetect.js), đã dùng đúng tiêu đề cột
+// như file mẫu Excel nên có thể nhập thẳng mà không cần "Lưu thành" lại.
 export function handleImportFileSelected(evt) {
   const file = evt.target.files && evt.target.files[0];
   if (!file) return;
 
+  const isCSV = /\.csv$/i.test(file.name);
   const reader = new FileReader();
+
   reader.onload = (e) => {
     try {
-      const data = new Uint8Array(e.target.result);
-      const wb = window.XLSX.read(data, { type: "array", cellDates: true });
-      const sheetName = wb.SheetNames.find(n => n === "Nhập thiết bị") || wb.SheetNames[0];
-      const ws = wb.Sheets[sheetName];
-      const rawRows = window.XLSX.utils.sheet_to_json(ws, { defval: "" });
-
-      if (rawRows.length === 0) {
-        toast("File không có dữ liệu để nhập", "err");
-        return;
+      let rawRows;
+      if (isCSV) {
+        const wb = window.XLSX.read(e.target.result, { type: "string", raw: true });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        rawRows = window.XLSX.utils.sheet_to_json(ws, { defval: "" });
+      } else {
+        const data = new Uint8Array(e.target.result);
+        const wb = window.XLSX.read(data, { type: "array", cellDates: true });
+        const sheetName = wb.SheetNames.find(n => n === "Nhập thiết bị") || wb.SheetNames[0];
+        const ws = wb.Sheets[sheetName];
+        rawRows = window.XLSX.utils.sheet_to_json(ws, { defval: "" });
       }
-
-      const requiredHeaders = ["Loại thiết bị (*)", "Thương hiệu (*)", "Tình trạng (*)", "Trạng thái (*)"];
-      const firstRowKeys = Object.keys(rawRows[0]);
-      const missingHeaders = requiredHeaders.filter(h => !firstRowKeys.includes(h));
-      if (missingHeaders.length > 0) {
-        toast(`File không đúng định dạng mẫu — thiếu cột: ${missingHeaders.join(", ")}. Vui lòng tải lại file mẫu.`, "err");
-        return;
-      }
-
-      const report = buildImportReport(rawRows, importCategoryContext);
-      showImportPreview(report, importCategoryContext);
+      processImportRows(rawRows);
     } catch (err) {
       console.error("Lỗi đọc file nhập thiết bị:", err);
-      toast("Không thể đọc file. Vui lòng dùng đúng file .xlsx theo mẫu.", "err");
+      toast("Không thể đọc file. Vui lòng dùng đúng file .xlsx/.csv theo mẫu.", "err");
     }
   };
-  reader.readAsArrayBuffer(file);
+
+  if (isCSV) reader.readAsText(file, "UTF-8");
+  else reader.readAsArrayBuffer(file);
 }
 
-function showImportPreview(report, categoryContext) {
-  const scope = categoryScope(categoryContext);
+function showImportPreview(report) {
   const okRows = report.filter(r => r.rowStatus === "ok");
   const errorRows = report.filter(r => r.rowStatus === "error");
   const skipRows = report.filter(r => r.rowStatus === "skip");
 
   const body = `
-    ${scope.catId !== "all" ? `<p style="color:var(--text-secondary); font-size:13.5px; margin-bottom:8px;"><i class="ph ph-funnel"></i> Đang nhập cho nhóm: <b>${esc(scope.label)}</b></p>` : ""}
     <p style="color:var(--text-secondary); font-size:13.5px; margin-bottom:16px;">
       Đã đọc <b>${report.length}</b> dòng dữ liệu:
       <span class="pill pill-success">${okRows.length} hợp lệ</span>

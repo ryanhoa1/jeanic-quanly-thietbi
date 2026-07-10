@@ -5,11 +5,11 @@ import {
   listAccounts, setAccountRole, setAccountActive, setAccountEmployeeLink,
   startMfaEnrollment, confirmMfaEnrollment, disableMfa, verifyMfaLoginToken
 } from './auth.js';
-import { loadAll, state, persistSettings, ASSET_CATEGORIES, ASSET_GROUPS, devicesInScope, scopeMeta } from './db.js';
+import { loadAll, state, persistSettings, ASSET_CATEGORIES, getCategoryMeta } from './db.js';
 import {
   renderDashboard, renderDevices, renderDeviceDetail,
   renderEmployees, renderEmployeeDetail, renderOps, renderReports, renderHistoryTable, renderSettings, renderAccountsTable,
-  renderMyDevices, renderMyAccount
+  renderMyDevices, renderMyAccount, renderLicenses, renderLicenseDetail
 } from './views.js';
 import {
   downloadDeviceImportTemplate, triggerImportFilePicker, handleImportFileSelected, confirmDeviceImport
@@ -20,7 +20,9 @@ import {
   openEmployeeForm, submitEmployeeForm,
   openOpsForm, submitOpsForm,
   refreshOpsDeviceChecklist, filterOpsDeviceList, toggleAllOpsDevices,
-  openRepairForm, submitRepairForm
+  openRepairForm, submitRepairForm,
+  openLicenseForm, submitLicenseForm, confirmDeleteLicense, deleteLicense,
+  openLicenseAssignForm, submitLicenseAssign, confirmUnassignLicenseSeat, unassignLicenseSeatForm
 } from './forms.js';
 import {
   printAssetLabel, printAssetLabelMini, openReceiptPreview, closeReceiptPreview,
@@ -28,8 +30,9 @@ import {
 } from './print.js';
 import {
   exportDevicesExcel, exportEmployeesExcel, exportHistoryExcel,
-  exportInventoryChecklist, exportFullReport
+  exportInventoryChecklist, exportFullReport, exportLicensesExcel
 } from './export.js';
+import { autoDetectDeviceConfig, downloadAutoConfigScript, showAutoConfigInstructions } from './autodetect.js';
 
 // Setup global app object for inline HTML event handlers (onclick="app.xyz()")
 window.app = {};
@@ -38,13 +41,15 @@ const NAV = [
   { grp: "Tổng quan", roles: ["admin"], items: [{ id: "dashboard", label: "Bảng điều khiển", ico: "ph-squares-four" }] },
   { grp: "Tài sản", roles: ["admin"], items: [
     { id: "devices", label: "Tất cả tài sản", ico: "ph-squares-four", cat: "all" },
-    ...ASSET_GROUPS.map(g => ({ id: "devices", label: g.label, ico: g.ico, cat: "grp:" + g.id })),
-    ...ASSET_CATEGORIES.map(c => ({ id: "devices", label: c.label, ico: c.ico, cat: c.id, indent: true }))
+    ...ASSET_CATEGORIES.map(c => ({ id: "devices", label: c.label, ico: c.ico, cat: c.id }))
   ]},
   { grp: "Nhân sự", roles: ["admin"], items: [{ id: "employees", label: "Nhân viên", ico: "ph-users" }] },
   { grp: "Nghiệp vụ", roles: ["admin"], items: [
     { id: "ops", label: "Nghiệp vụ", ico: "ph-arrows-left-right" },
     { id: "reports", label: "Báo cáo & Kiểm kê", ico: "ph-file-xls" }
+  ]},
+  { grp: "Bản quyền", roles: ["admin"], items: [
+    { id: "licenses", label: "Giấy phép / License", ico: "ph-key" }
   ]},
   { grp: "Cá nhân", roles: ["admin", "user"], items: [
     { id: "mydevices", label: "Thiết bị của tôi", ico: "ph-laptop" },
@@ -67,6 +72,8 @@ const PAGE_META = {
   employees: ["Nhân viên", "Danh sách nhân viên"],
   ops: ["Nghiệp vụ", "Bàn giao, thu hồi, điều chuyển thiết bị"],
   reports: ["Báo cáo & Kiểm kê", "Xuất danh sách Excel để báo cáo và kiểm kê thiết bị"],
+  licenses: ["Giấy phép / License", "Quản lý bản quyền phần mềm — một license có thể cấp cho nhiều người dùng"],
+  license: ["Chi tiết bản quyền", "Thông tin, cấp phát và lịch sử của bản quyền"],
   settings: ["Cài đặt", "Cấu hình hệ thống"],
   mydevices: ["Thiết bị của tôi", "Danh sách thiết bị bạn đang được bàn giao"],
   myaccount: ["Tài khoản của tôi", "Thông tin tài khoản và bảo mật đăng nhập"]
@@ -74,6 +81,7 @@ const PAGE_META = {
 
 let deviceFilter = { q: "", status: "all", dept: "all", category: "all" };
 let employeeFilter = { q: "", dept: "all" };
+let licenseFilter = { q: "" };
 
 // --- Auth UI Logic ---
 window.app.login = async () => {
@@ -182,7 +190,7 @@ function renderNav() {
         : (state.view === it.id);
       const onclick = isCat ? `app.setDeviceCategory('${it.cat}')` : `app.setView('${it.id}')`;
       return `
-        <button class="${active ? 'active' : ''} ${isCat ? 'nav-sub' : ''}" ${it.indent ? 'style="padding-left:34px; font-size:13px;"' : ''} onclick="${onclick}">
+        <button class="${active ? 'active' : ''} ${isCat ? 'nav-sub' : ''}" onclick="${onclick}">
           <i class="ph ${it.ico}"></i> ${it.label}
         </button>
       `;
@@ -216,11 +224,11 @@ function setView(view, arg) {
     content.innerHTML = renderDashboard();
   } else if (view === "devices") {
     actions.innerHTML = `<button class="btn btn-brand" onclick="app.openDeviceForm()"><i class="ph ph-plus"></i> Thêm thiết bị</button>`;
-    const scope = scopeMeta(deviceFilter.category);
-    document.getElementById("pageTitle").textContent = scope.kind === "all" ? "Tất cả tài sản" : scope.label;
-    document.getElementById("pageDesc").textContent = scope.kind === "all"
-      ? PAGE_META.devices[1]
-      : `Danh sách tài sản thuộc nhóm: ${scope.label}`;
+    const catMeta = deviceFilter.category && deviceFilter.category !== "all" ? getCategoryMeta(deviceFilter.category) : null;
+    document.getElementById("pageTitle").textContent = catMeta ? catMeta.label : "Tất cả tài sản";
+    document.getElementById("pageDesc").textContent = catMeta
+      ? `Danh sách tài sản thuộc nhóm: ${catMeta.label}`
+      : PAGE_META.devices[1];
     content.innerHTML = renderDevices(deviceFilter);
   } else if (view === "device") {
     content.innerHTML = renderDeviceDetail(arg);
@@ -235,6 +243,11 @@ function setView(view, arg) {
     content.innerHTML = renderOps();
   } else if (view === "reports") {
     content.innerHTML = renderReports();
+  } else if (view === "licenses") {
+    actions.innerHTML = `<button class="btn btn-brand" onclick="app.openLicenseForm()"><i class="ph ph-plus"></i> Thêm bản quyền</button>`;
+    content.innerHTML = renderLicenses(licenseFilter);
+  } else if (view === "license") {
+    content.innerHTML = renderLicenseDetail(arg);
   } else if (view === "settings") {
     content.innerHTML = renderSettings();
     loadAccountsBox();
@@ -264,13 +277,10 @@ window.app.downloadDeviceImportTemplate = downloadDeviceImportTemplate;
 window.app.triggerImportFilePicker = triggerImportFilePicker;
 window.app.handleImportFileSelected = handleImportFileSelected;
 window.app.confirmDeviceImport = confirmDeviceImport;
-window.app.exportDevicesForCategory = (scopeId) => {
-  const scope = scopeMeta(scopeId);
-  exportDevicesExcel(devicesInScope(scopeId), scope.kind === "all" ? null : scope.label);
-};
 window.app.setDeviceFilter = (k, v) => { deviceFilter[k] = v; setView("devices"); };
 window.app.setDeviceCategory = (catId) => { deviceFilter.category = catId; setView("devices"); };
 window.app.setEmployeeFilter = (k, v) => { employeeFilter[k] = v; setView("employees"); };
+window.app.setLicenseFilter = (k, v) => { licenseFilter[k] = v; setView("licenses"); };
 
 // Exposed UI helpers
 window.app.closeModal = closeModal;
@@ -311,6 +321,22 @@ window.app.submitRepairForm = (deviceId) => submitRepairForm(deviceId);
 window.app.openEmployeeForm = (id) => openEmployeeForm(id, refreshCurrentView);
 window.app.submitEmployeeForm = (id) => submitEmployeeForm(id);
 
+// --- Licenses (Bản quyền phần mềm — 1 license có thể cấp cho nhiều user) ---
+window.app.openLicenseForm = (id) => openLicenseForm(id, refreshCurrentView);
+window.app.submitLicenseForm = (id) => submitLicenseForm(id);
+window.app.confirmDeleteLicense = (id) => confirmDeleteLicense(id, () => setView("licenses"));
+window.app.deleteLicense = (id) => deleteLicense(id);
+window.app.openLicenseAssignForm = (licenseId) => openLicenseAssignForm(licenseId, refreshCurrentView);
+window.app.submitLicenseAssign = (licenseId) => submitLicenseAssign(licenseId);
+window.app.confirmUnassignLicenseSeat = (licenseId, assignId, employeeName) => confirmUnassignLicenseSeat(licenseId, assignId, employeeName, refreshCurrentView);
+window.app.unassignLicenseSeat = (licenseId, assignId) => unassignLicenseSeatForm(licenseId, assignId);
+window.app.exportLicensesExcel = () => exportLicensesExcel();
+
+// --- Auto-detect device configuration ---
+window.app.autoDetectDeviceConfig = () => autoDetectDeviceConfig();
+window.app.downloadAutoConfigScript = () => downloadAutoConfigScript();
+window.app.showAutoConfigInstructions = () => showAutoConfigInstructions();
+
 // --- Operations ---
 window.app.openOpsForm = (type) => openOpsForm(type, refreshCurrentView);
 window.app.submitOpsForm = (type) => submitOpsForm(type);
@@ -332,11 +358,15 @@ window.app.saveSettings = async () => {
   const depWarnEl = document.getElementById("setDepWarn");
   const warWarnEl = document.getElementById("setWarWarnDays");
   const repairWarnEl = document.getElementById("setRepairWarn");
+  const defaultSeatsEl = document.getElementById("setDefaultLicenseSeats");
+  const licenseWarnEl = document.getElementById("setLicenseWarnDays");
   if (usefulLifeEl) state.settings.usefulLifeYears = Number(usefulLifeEl.value) || state.settings.usefulLifeYears;
   if (warrantyEl) state.settings.warrantyMonths = Number(warrantyEl.value) || state.settings.warrantyMonths;
   if (depWarnEl) state.settings.depreciationWarnPercent = Number(depWarnEl.value) || 0;
   if (warWarnEl) state.settings.warrantyWarnDays = Number(warWarnEl.value) || 0;
   if (repairWarnEl) state.settings.repairCostWarnPercent = Number(repairWarnEl.value) || 0;
+  if (defaultSeatsEl) state.settings.defaultLicenseSeats = Number(defaultSeatsEl.value) || state.settings.defaultLicenseSeats;
+  if (licenseWarnEl) state.settings.licenseExpiryWarnDays = Number(licenseWarnEl.value) || 0;
 
   await persistSettings();
   toast("Đã lưu cấu hình hệ thống");

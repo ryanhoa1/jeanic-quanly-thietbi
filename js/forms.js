@@ -1,10 +1,12 @@
-import { state, DEPARTMENTS, CONDITIONS, DEVICE_TYPES, BRANDS, STATUS_META, ASSET_CATEGORIES, CATEGORY_FIELDS, getCategoryId, getCategoryMeta } from './db.js';
+import { state, DEPARTMENTS, CONDITIONS, DEVICE_TYPES, BRANDS, STATUS_META, ASSET_CATEGORIES, CATEGORY_FIELDS, getCategoryId, getCategoryMeta, LICENSE_TYPES } from './db.js';
 import {
   addDeviceRecord, updateDeviceRecord, addEmployeeRecord, updateEmployeeRecord,
   handoverDevice, returnDevice, transferDevice, retireDevice, addRepairRecord,
-  persistDevices, persistEmployees, persistMeta, saveGlobalLog
+  persistDevices, persistEmployees, persistMeta, saveGlobalLog,
+  addLicenseRecord, updateLicenseRecord, deleteLicenseRecord,
+  assignLicenseSeat, unassignLicenseSeat, persistLicenses, licenseSeatsLeft
 } from './db.js';
-import { nextDeviceId, nextEmployeeId, todayISO, esc, fmtVND } from './helpers.js';
+import { nextDeviceId, nextEmployeeId, nextLicenseId, todayISO, esc, fmtVND } from './helpers.js';
 import { openModal, closeModal, toast } from './ui.js';
 import { currentUser } from './auth.js';
 import { openReceiptPreview } from './print.js';
@@ -71,6 +73,12 @@ export function openDeviceForm(id, refresh) {
     <div class="field">
       <label>Thông số kỹ thuật</label>
       <textarea id="fSpecs" placeholder="VD: Dell Inspiron 15, i5-1355U, RAM 16GB, SSD 512GB">${esc(d?.specs || "")}</textarea>
+    </div>
+    <div class="autodetect-bar">
+      <button type="button" class="btn btn-sm btn-ghost" onclick="app.autoDetectDeviceConfig()">
+        <i class="ph ph-magic-wand"></i> Quét cấu hình máy đang dùng
+      </button>
+      <span class="autodetect-hint">Chỉ điền được thông tin của <b>máy đang mở trình duyệt này</b> (ước tính, nên kiểm tra lại). Muốn quét hàng loạt nhiều máy Windows và nhập chính xác — dùng script ở mục <b>Nghiệp vụ → Quét cấu hình tự động</b>.</span>
     </div>
     <div class="field attrs-block" id="fAttrsWrap">
       ${attrFieldsHTML(d?.type || DEVICE_TYPES[0], d?.attrs)}
@@ -512,4 +520,214 @@ export async function submitRepairForm(deviceId) {
   toast("Đã ghi nhận sửa chữa");
   closeModal();
   if (window.__repairFormRefresh) window.__repairFormRefresh();
+}
+
+// ---------- License Form (Add / Edit) ----------
+export function openLicenseForm(id, refresh) {
+  const editing = !!id;
+  const lic = editing ? state.licenses.find(x => x.id === id) : null;
+  if (editing && !lic) { toast("Không tìm thấy bản quyền", "err"); return; }
+
+  const usedSeats = editing ? (lic.assignments || []).length : 0;
+
+  const body = `
+    <div class="field">
+      <label>Tên phần mềm / sản phẩm</label>
+      <input type="text" id="lName" placeholder="VD: Microsoft 365 Business Standard" value="${esc(lic?.name || '')}">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Nhà cung cấp</label>
+        <input type="text" id="lVendor" placeholder="VD: Microsoft" value="${esc(lic?.vendor || '')}">
+      </div>
+      <div class="field">
+        <label>Loại bản quyền</label>
+        <select id="lType">${opt(LICENSE_TYPES, lic?.type || LICENSE_TYPES[0])}</select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Mã bản quyền / Key (nếu có)</label>
+      <input type="text" id="lKey" style="font-family:var(--font-mono);" value="${esc(lic?.licenseKey || '')}">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Số user tối đa được cấp phát (seats)</label>
+        <input type="number" id="lMaxSeats" min="1" value="${lic?.maxSeats ?? state.settings.defaultLicenseSeats}">
+      </div>
+      <div class="field">
+        <label>Giá mua (₫)</label>
+        <input type="number" id="lCost" min="0" value="${lic?.cost ?? ''}">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Ngày mua / kích hoạt</label>
+        <input type="date" id="lPurchaseDate" value="${lic?.purchaseDate || todayISO()}">
+      </div>
+      <div class="field">
+        <label>Ngày hết hạn (bỏ trống nếu vĩnh viễn)</label>
+        <input type="date" id="lExpiryDate" value="${lic?.expiryDate || ''}">
+      </div>
+    </div>
+    ${editing ? `<div class="field"><label>Đã cấp phát</label><div class="specs-box">${usedSeats}/${lic.maxSeats || 0} user đang dùng bản quyền này. Quản lý người dùng ở màn hình chi tiết sau khi lưu.</div></div>` : ''}
+    <div class="field">
+      <label>Ghi chú</label>
+      <textarea id="lNote">${esc(lic?.note || "")}</textarea>
+    </div>
+  `;
+
+  const foot = `
+    <button class="btn btn-ghost" onclick="app.closeModal()">Huỷ</button>
+    <button class="btn btn-brand" onclick="app.submitLicenseForm(${editing ? `'${id}'` : 'null'})"><i class="ph ph-floppy-disk"></i> Lưu</button>
+  `;
+
+  openModal(editing ? `Sửa bản quyền — ${esc(id)}` : "Thêm bản quyền mới", body, foot);
+  window.__licenseFormRefresh = refresh;
+}
+
+export async function submitLicenseForm(id) {
+  const name = document.getElementById("lName").value.trim();
+  if (!name) { toast("Vui lòng nhập tên phần mềm / sản phẩm", "err"); return; }
+  const maxSeats = Math.max(1, Number(document.getElementById("lMaxSeats").value) || 1);
+
+  const payload = {
+    name,
+    vendor: document.getElementById("lVendor").value.trim(),
+    type: document.getElementById("lType").value,
+    licenseKey: document.getElementById("lKey").value.trim(),
+    maxSeats,
+    cost: Number(document.getElementById("lCost").value) || 0,
+    purchaseDate: document.getElementById("lPurchaseDate").value,
+    expiryDate: document.getElementById("lExpiryDate").value || null,
+    note: document.getElementById("lNote").value.trim()
+  };
+
+  const byEmail = currentUser?.email;
+
+  if (id) {
+    const lic = state.licenses.find(x => x.id === id);
+    if (lic && maxSeats < (lic.assignments || []).length) {
+      toast(`Không thể đặt số seats thấp hơn số đang cấp phát (${lic.assignments.length})`, "err");
+      return;
+    }
+    updateLicenseRecord(id, payload, byEmail, "Cập nhật thông tin bản quyền");
+    await persistLicenses();
+    toast("Đã cập nhật bản quyền");
+  } else {
+    const newLicense = { id: nextLicenseId(), ...payload };
+    addLicenseRecord(newLicense, byEmail);
+    await persistLicenses();
+    await persistMeta();
+    toast("Đã thêm bản quyền mới");
+  }
+  closeModal();
+  if (window.__licenseFormRefresh) window.__licenseFormRefresh();
+}
+
+export function confirmDeleteLicense(id, refresh) {
+  const lic = state.licenses.find(x => x.id === id);
+  if (!lic) { toast("Không tìm thấy bản quyền", "err"); return; }
+  const body = `
+    <p style="color:var(--text-secondary); font-size:13.5px;">
+      Xoá bản quyền <b>${esc(lic.name)}</b> (${esc(id)})? Toàn bộ ${(lic.assignments || []).length} lượt cấp phát liên quan cũng sẽ bị xoá.
+      Hành động này không thể hoàn tác.
+    </p>
+  `;
+  const foot = `
+    <button class="btn btn-ghost" onclick="app.closeModal()">Huỷ</button>
+    <button class="btn btn-danger" onclick="app.deleteLicense('${id}')"><i class="ph ph-trash"></i> Xoá vĩnh viễn</button>
+  `;
+  openModal("Xoá bản quyền", body, foot);
+  window.__licenseFormRefresh = refresh;
+}
+
+export async function deleteLicense(id) {
+  const ok = deleteLicenseRecord(id);
+  if (!ok) { toast("Không thể xoá bản quyền", "err"); return; }
+  await persistLicenses();
+  toast("Đã xoá bản quyền");
+  closeModal();
+  if (window.__licenseFormRefresh) window.__licenseFormRefresh();
+}
+
+// ---------- License Seat Assignment ----------
+export function openLicenseAssignForm(licenseId, refresh) {
+  const lic = state.licenses.find(x => x.id === licenseId);
+  if (!lic) { toast("Không tìm thấy bản quyền", "err"); return; }
+  const seatsLeft = licenseSeatsLeft(lic);
+  if (seatsLeft <= 0) { toast("Bản quyền đã cấp phát đủ số lượng cho phép", "err"); return; }
+
+  const assignedIds = new Set((lic.assignments || []).map(a => a.employeeId));
+  const activeEmployees = state.employees.filter(e => e.status !== "Đã nghỉ việc" && !assignedIds.has(e.id));
+
+  if (activeEmployees.length === 0) {
+    toast("Tất cả nhân viên đang làm việc đã được cấp bản quyền này", "err");
+    return;
+  }
+
+  const deviceOptions = state.devices
+    .map(d => `<option value="${esc(d.id)}">${esc(d.id)} — ${esc(d.type)}${d.holderName ? ' ('+esc(d.holderName)+')' : ''}</option>`)
+    .join("");
+
+  const body = `
+    <p style="color:var(--text-secondary); font-size:13.5px; margin-bottom:16px;">
+      Còn <b>${seatsLeft}</b> / ${lic.maxSeats} chỗ trống cho bản quyền <b>${esc(lic.name)}</b>.
+    </p>
+    <div class="field">
+      <label>Cấp phát cho nhân viên</label>
+      <select id="laEmployee">
+        ${activeEmployees.map(e => `<option value="${e.id}">${esc(e.id)} — ${esc(e.name)} (${esc(e.dept || "")})</option>`).join("")}
+      </select>
+    </div>
+    <div class="field">
+      <label>Gắn với thiết bị cụ thể (không bắt buộc)</label>
+      <select id="laDevice">
+        <option value="">— Không gắn thiết bị —</option>
+        ${deviceOptions}
+      </select>
+    </div>
+    <div class="field">
+      <label>Ghi chú</label>
+      <textarea id="laNote" placeholder="Không bắt buộc"></textarea>
+    </div>
+  `;
+  const foot = `
+    <button class="btn btn-ghost" onclick="app.closeModal()">Huỷ</button>
+    <button class="btn btn-brand" onclick="app.submitLicenseAssign('${licenseId}')"><i class="ph ph-user-plus"></i> Cấp phát</button>
+  `;
+  openModal("Cấp phát bản quyền", body, foot);
+  window.__licenseAssignRefresh = refresh;
+}
+
+export async function submitLicenseAssign(licenseId) {
+  const employeeId = document.getElementById("laEmployee").value;
+  const deviceId = document.getElementById("laDevice").value || null;
+  const note = document.getElementById("laNote").value.trim();
+
+  const res = assignLicenseSeat(licenseId, { employeeId, deviceId, note }, currentUser?.email);
+  if (!res.ok) { toast(res.message, "err"); return; }
+
+  await persistLicenses();
+  toast("Đã cấp phát bản quyền");
+  closeModal();
+  if (window.__licenseAssignRefresh) window.__licenseAssignRefresh();
+}
+
+export function confirmUnassignLicenseSeat(licenseId, assignId, employeeName, refresh) {
+  const body = `<p style="color:var(--text-secondary); font-size:13.5px;">Thu hồi bản quyền đã cấp cho <b>${esc(employeeName)}</b>?</p>`;
+  const foot = `
+    <button class="btn btn-ghost" onclick="app.closeModal()">Huỷ</button>
+    <button class="btn btn-danger" onclick="app.unassignLicenseSeat('${licenseId}','${assignId}')"><i class="ph ph-user-minus"></i> Thu hồi</button>
+  `;
+  openModal("Thu hồi cấp phát", body, foot);
+  window.__licenseAssignRefresh = refresh;
+}
+
+export async function unassignLicenseSeatForm(licenseId, assignId) {
+  const ok = unassignLicenseSeat(licenseId, assignId, currentUser?.email);
+  if (!ok) { toast("Không thể thu hồi cấp phát", "err"); return; }
+  await persistLicenses();
+  toast("Đã thu hồi cấp phát");
+  closeModal();
+  if (window.__licenseAssignRefresh) window.__licenseAssignRefresh();
 }

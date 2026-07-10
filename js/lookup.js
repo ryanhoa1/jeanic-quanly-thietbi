@@ -4,7 +4,7 @@ import { PUBLIC_LOOKUP_COLLECTION } from './db.js';
 const CATEGORY_ICONS = {
   computers: "ph-desktop-tower", monitors: "ph-monitor", peripherals: "ph-mouse",
   printers: "ph-printer", network: "ph-network", phones: "ph-device-mobile",
-  cartridges: "ph-drop", consumables: "ph-package", bags: "ph-bag", others: "ph-question"
+  cartridges: "ph-drop", consumables: "ph-package", others: "ph-question"
 };
 
 const STATUS_PILL = {
