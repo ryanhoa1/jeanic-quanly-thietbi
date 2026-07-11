@@ -3,7 +3,6 @@ import { state } from './db.js';
 export function pad3(n) { return String(n).padStart(3, "0"); }
 export function nextDeviceId() { return "TB" + pad3(state.meta.deviceSeq); }
 export function nextEmployeeId() { return "NV" + pad3(state.meta.employeeSeq); }
-export function nextLicenseId() { return "LIC" + pad3(state.meta.licenseSeq || 1); }
 export function todayISO() { return new Date().toISOString().slice(0, 10); }
 
 export function fmtDate(iso) { 
@@ -99,31 +98,6 @@ export function computeAlerts() {
       if (dep.price > 0 && rTotal >= dep.price * state.settings.repairCostWarnPercent / 100) {
         alerts.push({ device: d, kind: "repair-cost", text: `Chi phí sửa chữa ${fmtVND(rTotal)} — cân nhắc thanh lý` });
       }
-    }
-  });
-  return alerts;
-}
-
-// License-specific alerts (expiring soon / expired / seats full). Kept
-// separate from computeAlerts() (device-only) since license alerts key off
-// a license record rather than a device record.
-export function computeLicenseAlerts() {
-  const alerts = [];
-  (state.licenses || []).forEach(lic => {
-    const used = (lic.assignments || []).length;
-    const max = Number(lic.maxSeats) || 0;
-    if (lic.expiryDate) {
-      const end = new Date(lic.expiryDate);
-      const daysLeft = Math.round((end - new Date()) / 86400000);
-      const warnDays = state.settings.licenseExpiryWarnDays || 30;
-      if (daysLeft < 0) {
-        alerts.push({ license: lic, kind: "license-expired", text: `Đã hết hạn ${Math.abs(daysLeft)} ngày trước` });
-      } else if (daysLeft <= warnDays) {
-        alerts.push({ license: lic, kind: "license-expiring", text: `Sắp hết hạn (còn ${daysLeft} ngày)` });
-      }
-    }
-    if (max > 0 && used >= max) {
-      alerts.push({ license: lic, kind: "license-full", text: `Đã cấp phát đủ ${used}/${max} chỗ` });
     }
   });
   return alerts;

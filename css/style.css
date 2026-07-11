@@ -274,6 +274,13 @@ table.data tr.rowclick:hover td { background: rgba(255,255,255,0.02); }
 .cat-tab i { font-size: 15px; }
 .cat-tab:hover { color: #fff; border-color: var(--text-muted); }
 .cat-tab.active { background: var(--brand-primary-glass); color: var(--brand-primary); border-color: var(--brand-primary); }
+.cat-group-divider {
+  display: inline-flex; align-items: center; white-space: nowrap; flex-shrink: 0;
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600;
+  color: var(--text-muted); padding: 0 12px 0 14px; border-left: 1px solid var(--border-color);
+  margin-left: 2px;
+}
+.cat-group-divider:first-of-type { border-left: none; margin-left: 4px; }
 
 /* Category-specific attribute fields in the device form */
 .attrs-block { border-top: 1px dashed var(--border-color); padding-top: 12px; margin-top: 4px; }
@@ -479,34 +486,3 @@ table.bb-table th { background: #eee; }
 .thermal-page.last { page-break-after: auto; }
 .thermal-page .th-co { font-size: 9px; font-weight: bold; }
 .thermal-page .th-id { font-size: 14px; font-weight: bold; margin: 2px 0; }
-
-/* --- License module & auto-detect additions --- */
-.btn-danger {
-  background: rgba(239, 68, 68, 0.12);
-  border-color: rgba(239, 68, 68, 0.35);
-  color: #FCA5A5;
-}
-.btn-danger:hover:not(:disabled) {
-  background: var(--accent-danger);
-  border-color: var(--accent-danger);
-  color: #fff;
-}
-
-.autodetect-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 10px 12px;
-  margin: -6px 0 16px 0;
-  background: rgba(59, 130, 246, 0.06);
-  border: 1px dashed var(--border-color);
-  border-radius: var(--radius-sm);
-}
-.autodetect-hint {
-  font-size: 12px;
-  color: var(--text-muted);
-  line-height: 1.5;
-  flex: 1;
-  min-width: 220px;
-}

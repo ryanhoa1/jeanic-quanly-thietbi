@@ -2,21 +2,53 @@ import { db, useFirebase } from './firebase-config.js';
 
 export const DEPARTMENTS = ["Ban Giám đốc","IT","Nhân sự (HR)","Kế toán","Kinh doanh","Plan (Kế hoạch)","Cắt (Cutting)","May (Sewing)","Hoàn thiện (Finishing)","QA/QC","Kho (Warehouse)","Bảo trì (Maintenance)","Xuất nhập khẩu","Khác"];
 export const CONDITIONS = ["Mới","Tốt","Khá","Trung bình","Hỏng nhẹ","Hỏng nặng"];
-export const DEVICE_TYPES = ["Desktop","Laptop","Laptop + Sạc","Màn hình","Bàn phím","Chuột không dây","Chuột có dây","Combo Bàn phím + Chuột","Tai nghe","Webcam","Camera","Máy in","Router/Switch","Điện thoại","Mực in/Hộp mực","USB/Ổ cứng di động","Balo/Túi laptop","Sạc/Cáp","Khác"];
-export const BRANDS = ["Dell","HP","Lenovo","Asus","Acer","Apple","Logitech","EBLUE","Samsung","LG","Canon","TP-Link","HIKVision","Kingston","Xiaomi","Khác"];
-
-// ---------- Asset Categories (GLPI-style grouping) ----------
-export const ASSET_CATEGORIES = [
-  { id: "computers", label: "Máy tính (Desktop/Laptop)", ico: "ph-desktop-tower", types: ["Desktop", "Laptop", "Laptop + Sạc"] },
-  { id: "monitors", label: "Màn hình", ico: "ph-monitor", types: ["Màn hình"] },
-  { id: "peripherals", label: "Thiết bị ngoại vi", ico: "ph-mouse", types: ["Bàn phím", "Chuột không dây", "Chuột có dây", "Combo Bàn phím + Chuột", "Tai nghe", "Webcam", "Camera"] },
-  { id: "printers", label: "Máy in", ico: "ph-printer", types: ["Máy in"] },
-  { id: "network", label: "Thiết bị mạng", ico: "ph-network", types: ["Router/Switch"] },
-  { id: "phones", label: "Điện thoại", ico: "ph-device-mobile", types: ["Điện thoại"] },
-  { id: "cartridges", label: "Mực in / Vật tư in", ico: "ph-drop", types: ["Mực in/Hộp mực"] },
-  { id: "consumables", label: "Vật tư tiêu hao", ico: "ph-package", types: ["USB/Ổ cứng di động", "Balo/Túi laptop", "Sạc/Cáp"] },
-  { id: "others", label: "Khác", ico: "ph-question", types: ["Khác"] }
+export const DEVICE_TYPES = [
+  // Danh mục tài sản
+  "Desktop","Laptop","Laptop + Sạc","Màn hình","Máy in","Router/Switch","Điện thoại",
+  // Phụ kiện
+  "Bàn phím","Chuột không dây","Chuột có dây","Combo Bàn phím + Chuột","Tai nghe","Loa","Webcam","Camera",
+  "Balo/Túi laptop","Sạc/Cáp","Cổng chuyển đổi (Hub/Adapter)","Đế tản nhiệt laptop",
+  // Linh kiện & Vật tư tiêu hao
+  "Mực in/Hộp mực","USB/Ổ cứng di động","Thẻ nhớ","RAM","Ổ cứng SSD/HDD (lắp trong)","Nguồn (PSU)","Quạt tản nhiệt/Quạt chip",
+  "Khác"
 ];
+export const BRANDS = ["Dell","HP","Lenovo","Asus","Acer","Apple","Logitech","EBLUE","Samsung","LG","Canon","TP-Link","HIKVision","Kingston","Western Digital","Seagate","Corsair","Xiaomi","Khác"];
+
+// ---------- Asset Groups & Categories ----------
+// 3 nhóm lớn theo cách phân loại vận hành thực tế của công ty:
+//  - Danh mục tài sản: tài sản cố định / công cụ dụng cụ chính, giá trị lớn, quản lý theo mã định danh, có khấu hao.
+//  - Phụ kiện: cấp phát kèm theo người dùng để vận hành/hỗ trợ, giá trị vừa phải, tái sử dụng được cho người sau.
+//  - Linh kiện & Vật tư tiêu hao: tính vào chi phí tiêu hao trực tiếp hoặc lắp cố định vào tài sản chính, hết là thay mới.
+export const ASSET_GROUPS = [
+  { id: "danh_muc_tai_san", label: "Danh mục tài sản", sub: "Tài sản cố định / công cụ dụng cụ chính", ico: "ph-desktop-tower" },
+  { id: "phu_kien", label: "Phụ kiện", sub: "Đi kèm để vận hành hoặc hỗ trợ người dùng", ico: "ph-headset" },
+  { id: "linh_kien_vat_tu", label: "Linh kiện & Vật tư tiêu hao", sub: "Tiêu hao trực tiếp hoặc lắp cố định vào tài sản chính", ico: "ph-cpu" }
+];
+
+export const ASSET_CATEGORIES = [
+  // ---- Danh mục tài sản ----
+  { id: "computers", group: "danh_muc_tai_san", label: "Máy tính (Desktop/Laptop)", ico: "ph-desktop-tower", types: ["Desktop", "Laptop", "Laptop + Sạc"] },
+  { id: "monitors", group: "danh_muc_tai_san", label: "Màn hình", ico: "ph-monitor", types: ["Màn hình"] },
+  { id: "printers", group: "danh_muc_tai_san", label: "Máy in", ico: "ph-printer", types: ["Máy in"] },
+  { id: "network", group: "danh_muc_tai_san", label: "Thiết bị mạng", ico: "ph-network", types: ["Router/Switch"] },
+  { id: "phones", group: "danh_muc_tai_san", label: "Điện thoại", ico: "ph-device-mobile", types: ["Điện thoại"] },
+
+  // ---- Phụ kiện ----
+  { id: "peripherals", group: "phu_kien", label: "Thiết bị ngoại vi", ico: "ph-mouse", types: ["Bàn phím", "Chuột không dây", "Chuột có dây", "Combo Bàn phím + Chuột", "Tai nghe", "Loa", "Webcam", "Camera"] },
+  { id: "mobile-accessories", group: "phu_kien", label: "Phụ kiện di động / văn phòng", ico: "ph-bag", types: ["Balo/Túi laptop", "Sạc/Cáp", "Cổng chuyển đổi (Hub/Adapter)", "Đế tản nhiệt laptop"] },
+
+  // ---- Linh kiện & Vật tư tiêu hao ----
+  { id: "cartridges", group: "linh_kien_vat_tu", label: "Mực in / Vật tư in", ico: "ph-drop", types: ["Mực in/Hộp mực"] },
+  { id: "storage-media", group: "linh_kien_vat_tu", label: "Thiết bị lưu trữ nhỏ", ico: "ph-usb", types: ["USB/Ổ cứng di động", "Thẻ nhớ"] },
+  { id: "internal-parts", group: "linh_kien_vat_tu", label: "Linh kiện thay thế bên trong", ico: "ph-cpu", types: ["RAM", "Ổ cứng SSD/HDD (lắp trong)", "Nguồn (PSU)", "Quạt tản nhiệt/Quạt chip"] },
+
+  // Không thuộc nhóm rõ ràng nào — xếp tạm vào Phụ kiện làm mục "khác"
+  { id: "others", group: "phu_kien", label: "Khác", ico: "ph-question", types: ["Khác"] }
+];
+
+export function getAssetGroupMeta(groupId) {
+  return ASSET_GROUPS.find(g => g.id === groupId) || null;
+}
 
 export function getCategoryId(type) {
   const cat = ASSET_CATEGORIES.find(c => c.types.includes(type));
@@ -25,6 +57,11 @@ export function getCategoryId(type) {
 
 export function getCategoryMeta(catId) {
   return ASSET_CATEGORIES.find(c => c.id === catId) || null;
+}
+
+export function devicesInCategory(catId) {
+  if (!catId || catId === "all") return state.devices;
+  return state.devices.filter(d => getCategoryId(d.type) === catId);
 }
 
 // Category-specific specification fields, stored per-device in `device.attrs`
@@ -46,6 +83,10 @@ export const CATEGORY_FIELDS = {
     { key: "connectType", label: "Kết nối (Có dây/Không dây/Bluetooth)" },
     { key: "serial", label: "Số Serial" }
   ],
+  "mobile-accessories": [
+    { key: "connectType", label: "Chuẩn cổng / kết nối" },
+    { key: "serial", label: "Số Serial" }
+  ],
   printers: [
     { key: "printType", label: "Loại in (Laser/Phun mực)" },
     { key: "inkModel", label: "Mã mực / hộp mực dùng" },
@@ -65,7 +106,16 @@ export const CATEGORY_FIELDS = {
     { key: "inkModel", label: "Mã mực" },
     { key: "printerModel", label: "Dùng cho máy in" }
   ],
-  consumables: [],
+  "storage-media": [
+    { key: "capacity", label: "Dung lượng" },
+    { key: "connectType", label: "Chuẩn kết nối (USB-A/USB-C/…)" },
+    { key: "serial", label: "Số Serial" }
+  ],
+  "internal-parts": [
+    { key: "capacity", label: "Dung lượng / Công suất" },
+    { key: "compatibleDevice", label: "Lắp cho thiết bị (Mã TB máy chính)" },
+    { key: "serial", label: "Số Serial" }
+  ],
   others: []
 };
 
@@ -76,31 +126,12 @@ export const STATUS_META = {
   "Thanh lý": { pill: "pill-danger" }
 };
 
-// ---------- Licenses (Bản quyền phần mềm) ----------
-export const LICENSE_TYPES = [
-  "Vĩnh viễn (Perpetual)",
-  "Thuê bao theo năm (Subscription)",
-  "Thuê bao theo tháng (Subscription)",
-  "Dùng thử (Trial)",
-  "OEM đi kèm thiết bị",
-  "Khác"
-];
-
-export const LICENSE_STATUS_META = {
-  "Còn hiệu lực": { pill: "pill-success" },
-  "Sắp hết hạn": { pill: "pill-warning" },
-  "Hết hạn": { pill: "pill-danger" },
-  "Hết chỗ": { pill: "pill-slate" }
-};
-
 export const DEFAULT_SETTINGS = {
   usefulLifeYears: 3,
   warrantyMonths: 12,
   depreciationWarnPercent: 15,
   warrantyWarnDays: 30,
   repairCostWarnPercent: 30,
-  licenseExpiryWarnDays: 30,
-  defaultLicenseSeats: 5,
   companyName: "Công ty TNHH Jeanic Garment",
   companyAddress: "",
   companyDept: "Phòng Công nghệ thông tin"
@@ -109,8 +140,7 @@ export const DEFAULT_SETTINGS = {
 export const state = {
   devices: [],
   employees: [],
-  licenses: [],
-  meta: { deviceSeq: 1, employeeSeq: 1, licenseSeq: 1 },
+  meta: { deviceSeq: 1, employeeSeq: 1 },
   settings: { ...DEFAULT_SETTINGS },
   accounts: [],
   view: "dashboard",
@@ -203,10 +233,9 @@ export async function persistDevices() {
 export async function persistEmployees() { await Store.set("employees", JSON.stringify(state.employees)); }
 export async function persistMeta() { await Store.set("meta", JSON.stringify(state.meta)); }
 export async function persistSettings() { await Store.set("settings", JSON.stringify(state.settings)); }
-export async function persistLicenses() { await Store.set("licenses", JSON.stringify(state.licenses)); }
 
 export async function persistAll() {
-  await Promise.all([persistDevices(), persistEmployees(), persistMeta(), persistSettings(), persistLicenses()]);
+  await Promise.all([persistDevices(), persistEmployees(), persistMeta(), persistSettings()]);
 }
 
 // ---------- Device CRUD ----------
@@ -268,111 +297,6 @@ export function updateEmployeeRecord(id, patch) {
   if (!e) return null;
   Object.assign(e, patch);
   return e;
-}
-
-// ---------- License CRUD ----------
-// A single license record can be allotted to several users at once (e.g. one
-// Office 365 key covering 5 employees). `maxSeats` is the number of users it
-// may legally be assigned to; `assignments` is the actual list currently
-// holding a seat. Optionally each assignment can also reference a specific
-// device (e.g. tying the seat to the laptop it's installed on).
-export function addLicenseRecord(licData, byEmail) {
-  const now = new Date().toISOString();
-  const lic = {
-    ...licData,
-    assignments: [],
-    history: [{
-      date: now, type: "them_moi", label: "Thêm mới bản quyền vào hệ thống",
-      by: byEmail || "—", note: licData.note || ""
-    }]
-  };
-  state.licenses.push(lic);
-  state.meta.licenseSeq = (state.meta.licenseSeq || 1) + 1;
-  return lic;
-}
-
-export function updateLicenseRecord(id, patch, byEmail, changeNote) {
-  const lic = state.licenses.find(x => x.id === id);
-  if (!lic) return null;
-  Object.assign(lic, patch);
-  if (changeNote) {
-    lic.history = lic.history || [];
-    lic.history.unshift({
-      date: new Date().toISOString(), type: "cap_nhat", label: "Cập nhật thông tin bản quyền",
-      by: byEmail || "—", note: changeNote
-    });
-  }
-  return lic;
-}
-
-export function deleteLicenseRecord(id) {
-  const idx = state.licenses.findIndex(x => x.id === id);
-  if (idx === -1) return false;
-  state.licenses.splice(idx, 1);
-  return true;
-}
-
-export function licenseSeatsUsed(lic) {
-  return (lic.assignments || []).length;
-}
-
-export function licenseSeatsLeft(lic) {
-  return Math.max(0, (Number(lic.maxSeats) || 0) - licenseSeatsUsed(lic));
-}
-
-// Derived status: expiry takes priority over seat availability so an admin
-// always sees the most urgent problem first.
-export function licenseStatus(lic) {
-  if (lic.expiryDate) {
-    const end = new Date(lic.expiryDate);
-    const daysLeft = Math.round((end - new Date()) / 86400000);
-    if (daysLeft < 0) return { key: "Hết hạn", daysLeft };
-    if (daysLeft <= (state.settings.licenseExpiryWarnDays || 30)) return { key: "Sắp hết hạn", daysLeft };
-  }
-  if (licenseSeatsLeft(lic) <= 0 && Number(lic.maxSeats) > 0) return { key: "Hết chỗ", daysLeft: null };
-  return { key: "Còn hiệu lực", daysLeft: null };
-}
-
-export function assignLicenseSeat(licenseId, { employeeId, deviceId, note }, byEmail) {
-  const lic = state.licenses.find(x => x.id === licenseId);
-  const emp = state.employees.find(x => x.id === employeeId);
-  if (!lic || !emp) return { ok: false, message: "Không tìm thấy bản quyền hoặc nhân viên" };
-  if (licenseSeatsLeft(lic) <= 0) return { ok: false, message: "Bản quyền đã cấp phát đủ số lượng cho phép" };
-  if ((lic.assignments || []).some(a => a.employeeId === employeeId && (!deviceId || a.deviceId === deviceId))) {
-    return { ok: false, message: "Nhân viên này đã được cấp bản quyền này rồi" };
-  }
-  const device = deviceId ? state.devices.find(x => x.id === deviceId) : null;
-  lic.assignments = lic.assignments || [];
-  const assignment = {
-    assignId: "A" + Date.now().toString(36).toUpperCase() + Math.floor(Math.random() * 1000),
-    employeeId: emp.id, employeeName: emp.name, dept: emp.dept,
-    deviceId: device ? device.id : null, deviceLabel: device ? `${device.id} — ${device.type}` : null,
-    assignedDate: new Date().toISOString().slice(0, 10),
-    note: note || ""
-  };
-  lic.assignments.push(assignment);
-  lic.history = lic.history || [];
-  lic.history.unshift({
-    date: new Date().toISOString(), type: "cap_phat", label: "Cấp phát cho nhân viên",
-    to: emp.name, dept: emp.dept, by: byEmail || "—",
-    note: (device ? `Thiết bị: ${device.id}. ` : "") + (note || "")
-  });
-  return { ok: true, assignment };
-}
-
-export function unassignLicenseSeat(licenseId, assignId, byEmail) {
-  const lic = state.licenses.find(x => x.id === licenseId);
-  if (!lic) return false;
-  const idx = (lic.assignments || []).findIndex(a => a.assignId === assignId);
-  if (idx === -1) return false;
-  const a = lic.assignments[idx];
-  lic.assignments.splice(idx, 1);
-  lic.history = lic.history || [];
-  lic.history.unshift({
-    date: new Date().toISOString(), type: "thu_hoi_cap_phat", label: "Thu hồi cấp phát khỏi nhân viên",
-    from: a.employeeName, by: byEmail || "—", note: ""
-  });
-  return true;
 }
 
 // ---------- Operations: handover / return / transfer ----------
@@ -464,33 +388,20 @@ function seedDefaults() {
       repairs: [], history: []
     }
   ];
-  state.licenses = [
-    {
-      id: "LIC001", name: "Microsoft 365 Business Standard", vendor: "Microsoft",
-      type: "Thuê bao theo năm (Subscription)", licenseKey: "XXXXX-XXXXX-XXXXX-XXXXX",
-      maxSeats: 5, purchaseDate: "2026-01-10", expiryDate: "2027-01-10", cost: 6000000,
-      note: "Gói 5 user dùng chung cho phòng Kế hoạch", assignments: [
-        { assignId: "A1", employeeId: "NV002", employeeName: "Nguyễn Thị Hải", dept: "Plan (Kế hoạch)", deviceId: null, deviceLabel: null, assignedDate: "2026-01-10", note: "" }
-      ],
-      history: [{ date: "2026-01-10T09:00:00.000Z", type: "them_moi", label: "Thêm mới bản quyền vào hệ thống", by: "Bùi Văn Hòa", note: "" }]
-    }
-  ];
-  state.meta = { deviceSeq: 3, employeeSeq: 3, licenseSeq: 2 };
+  state.meta = { deviceSeq: 3, employeeSeq: 3 };
   state.settings = { ...DEFAULT_SETTINGS };
 }
 
 export async function loadAll() {
-  const [d, e, m, s, l] = await Promise.all([
-    Store.get("devices"), Store.get("employees"), Store.get("meta"), Store.get("settings"), Store.get("licenses")
+  const [d, e, m, s] = await Promise.all([
+    Store.get("devices"), Store.get("employees"), Store.get("meta"), Store.get("settings")
   ]);
   
   if (d && e && m) {
     state.devices = JSON.parse(d.value);
     state.employees = JSON.parse(e.value);
     state.meta = JSON.parse(m.value);
-    state.meta.licenseSeq = state.meta.licenseSeq || 1;
     state.settings = s ? { ...DEFAULT_SETTINGS, ...JSON.parse(s.value) } : { ...DEFAULT_SETTINGS };
-    state.licenses = l ? JSON.parse(l.value) : [];
   } else {
     seedDefaults();
     await persistAll();

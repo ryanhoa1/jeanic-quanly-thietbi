@@ -1,5 +1,5 @@
-import { state, STATUS_META, DEPARTMENTS, CONDITIONS, DEVICE_TYPES, BRANDS, ASSET_CATEGORIES, CATEGORY_FIELDS, getCategoryId, getCategoryMeta, LICENSE_TYPES, LICENSE_STATUS_META, licenseSeatsUsed, licenseSeatsLeft, licenseStatus } from './db.js';
-import { fmtVND, fmtDate, fmtDateTime, computeAlerts, computeLicenseAlerts, computeDepreciation, warrantyInfo, repairTotal, esc } from './helpers.js';
+import { state, STATUS_META, DEPARTMENTS, CONDITIONS, DEVICE_TYPES, BRANDS, ASSET_CATEGORIES, ASSET_GROUPS, CATEGORY_FIELDS, getCategoryId, getCategoryMeta } from './db.js';
+import { fmtVND, fmtDate, fmtDateTime, computeAlerts, computeDepreciation, warrantyInfo, repairTotal, esc } from './helpers.js';
 import { emptyState } from './ui.js';
 
 export function renderDashboard() {
@@ -21,9 +21,6 @@ export function renderDashboard() {
   });
   
   const alerts = computeAlerts();
-  const licenseAlerts = computeLicenseAlerts();
-  const totalLicenseSeatsUsed = state.licenses.reduce((s, l) => s + licenseSeatsUsed(l), 0);
-  const totalLicenseSeatsMax = state.licenses.reduce((s, l) => s + (Number(l.maxSeats) || 0), 0);
 
   return `
     <div class="grid-stats">
@@ -63,31 +60,16 @@ export function renderDashboard() {
         <div class="l">Thiết bị cần chú ý</div>
       </div>
     </div>
-
-    <div class="grid-stats" style="grid-template-columns: repeat(3, 1fr);">
-      <div class="stat-card accent-brand">
-        <div class="n">${state.licenses.length}</div>
-        <div class="l">Số bản quyền quản lý</div>
-      </div>
-      <div class="stat-card accent-success">
-        <div class="n">${totalLicenseSeatsUsed}/${totalLicenseSeatsMax}</div>
-        <div class="l">Seats đã cấp phát / tổng seats</div>
-      </div>
-      <div class="stat-card ${licenseAlerts.length ? 'accent-danger' : 'accent-success'}">
-        <div class="n">${licenseAlerts.length}</div>
-        <div class="l">Bản quyền cần chú ý</div>
-      </div>
-    </div>
     
     <div class="panel">
       <div class="panel-head">
         <h3><i class="ph ph-warning-circle"></i> Cần chú ý</h3>
         <button class="btn btn-sm btn-ghost" onclick="app.setView('finance')">Tài chính & Khấu hao <i class="ph ph-arrow-right"></i></button>
       </div>
-      ${(alerts.length === 0 && licenseAlerts.length === 0) ? emptyState("Không có cảnh báo", "Hệ thống đang hoạt động ổn định.") : `
+      ${alerts.length === 0 ? emptyState("Không có cảnh báo", "Hệ thống đang hoạt động ổn định.") : `
       <div class="table-responsive">
         <table class="data">
-          <tr><th>Đối tượng</th><th>Cảnh báo</th></tr>
+          <tr><th>Thiết bị</th><th>Cảnh báo</th></tr>
           ${alerts.slice(0, 8).map(a => `
             <tr class="rowclick" onclick="app.setView('device','${a.device.id}')">
               <td>
@@ -96,18 +78,6 @@ export function renderDashboard() {
               </td>
               <td>
                 <span class="pill ${a.kind === 'warranty' ? 'pill-warning' : a.kind === 'warranty-expired' ? 'pill-danger' : a.kind === 'depreciation' ? 'pill-slate' : 'pill-danger'}">
-                  ${esc(a.text)}
-                </span>
-              </td>
-            </tr>`).join("")}
-          ${licenseAlerts.slice(0, 8).map(a => `
-            <tr class="rowclick" onclick="app.setView('license','${a.license.id}')">
-              <td>
-                <div class="cell-title">${esc(a.license.id)}</div>
-                <div class="cell-sub">${esc(a.license.name)}</div>
-              </td>
-              <td>
-                <span class="pill ${a.kind === 'license-expiring' ? 'pill-warning' : a.kind === 'license-expired' ? 'pill-danger' : 'pill-slate'}">
                   ${esc(a.text)}
                 </span>
               </td>
@@ -142,14 +112,26 @@ export function renderDashboard() {
 }
 
 function categoryTabsHTML(activeCat) {
-  const tabs = [{ id: "all", label: "Tất cả", ico: "ph-squares-four" }, ...ASSET_CATEGORIES.map(c => ({ id: c.id, label: c.label, ico: c.ico }))];
-  return `
-    <div class="cat-tabs">
-      ${tabs.map(t => `
-        <button class="cat-tab ${(activeCat || 'all') === t.id ? 'active' : ''}" onclick="app.setDeviceCategory('${t.id}')">
-          <i class="ph ${t.ico}"></i> ${t.label}
+  const current = activeCat || "all";
+  const groupBlocks = ASSET_GROUPS.map(g => {
+    const cats = ASSET_CATEGORIES.filter(c => c.group === g.id);
+    if (cats.length === 0) return "";
+    return `
+      <span class="cat-group-divider" title="${esc(g.sub || '')}">${esc(g.label)}</span>
+      ${cats.map(c => `
+        <button class="cat-tab ${current === c.id ? 'active' : ''}" onclick="app.setDeviceCategory('${c.id}')">
+          <i class="ph ${c.ico}"></i> ${esc(c.label)}
         </button>
       `).join("")}
+    `;
+  }).join("");
+
+  return `
+    <div class="cat-tabs">
+      <button class="cat-tab ${current === 'all' ? 'active' : ''}" onclick="app.setDeviceCategory('all')">
+        <i class="ph ph-squares-four"></i> Tất cả
+      </button>
+      ${groupBlocks}
     </div>
   `;
 }
@@ -185,11 +167,14 @@ export function renderDevices(filter) {
         <option value="all">Tất cả bộ phận</option>
         ${DEPARTMENTS.map(dp => `<option value="${dp}" ${filter.dept === dp ? 'selected' : ''}>${dp}</option>`).join("")}
       </select>
-      <button class="btn btn-ghost" onclick="app.exportDevicesExcel()" title="Xuất danh sách thiết bị ra Excel">
+      <button class="btn btn-ghost" onclick="app.exportDevicesForCategory('${activeCat}')" title="Xuất ${activeCat === 'all' ? 'toàn bộ danh sách' : 'nhóm này'} ra Excel">
         <i class="ph ph-file-xls"></i> Xuất Excel
       </button>
-      <button class="btn btn-ghost" onclick="app.triggerImportFilePicker()" title="Nhập nhiều thiết bị cùng lúc từ file Excel">
-        <i class="ph ph-file-arrow-up"></i> Nhập từ Excel
+      <button class="btn btn-ghost" onclick="app.downloadDeviceImportTemplate('${activeCat}')" title="Tải file mẫu để điền và nhập thiết bị">
+        <i class="ph ph-file-arrow-down"></i> Tải mẫu
+      </button>
+      <button class="btn btn-brand" onclick="app.triggerImportFilePicker('${activeCat}')" title="Nhập nhiều thiết bị cùng lúc từ file Excel">
+        <i class="ph ph-file-arrow-up"></i> Nhập Excel
       </button>
     </div>
     
@@ -378,6 +363,12 @@ export function renderEmployees(filter) {
       </select>
       <button class="btn btn-ghost" onclick="app.exportEmployeesExcel()" title="Xuất danh sách nhân viên ra Excel">
         <i class="ph ph-file-xls"></i> Xuất Excel
+      </button>
+      <button class="btn btn-ghost" onclick="app.downloadEmployeeImportTemplate()" title="Tải file mẫu để điền và nhập nhân viên">
+        <i class="ph ph-file-arrow-down"></i> Tải mẫu
+      </button>
+      <button class="btn btn-brand" onclick="app.triggerEmployeeImportFilePicker()" title="Nhập nhiều nhân viên cùng lúc từ file Excel">
+        <i class="ph ph-file-arrow-up"></i> Nhập Excel
       </button>
     </div>
     <div class="panel">
@@ -694,139 +685,6 @@ export function renderHistoryTable(limit) {
   `;
 }
 
-// ---------- Licenses (Bản quyền phần mềm) ----------
-export function renderLicenses(filter) {
-  filter = filter || { q: "" };
-  const q = (filter.q || "").toLowerCase();
-
-  let list = state.licenses.slice();
-  if (q) {
-    list = list.filter(l =>
-      l.id.toLowerCase().includes(q) ||
-      (l.name || "").toLowerCase().includes(q) ||
-      (l.vendor || "").toLowerCase().includes(q) ||
-      (l.licenseKey || "").toLowerCase().includes(q)
-    );
-  }
-
-  return `
-    <div class="toolbar">
-      <div class="search-box">
-        <i class="ph ph-magnifying-glass"></i>
-        <input type="text" placeholder="Tìm theo tên, nhà cung cấp, mã bản quyền…" value="${esc(filter.q || "")}" oninput="app.setLicenseFilter('q', this.value)">
-      </div>
-    </div>
-
-    ${list.length === 0 ? emptyState("Không có bản quyền nào", "Thêm bản quyền phần mềm đầu tiên hoặc thử từ khoá khác.") : `
-    <div class="table-responsive">
-      <table class="data">
-        <tr>
-          <th>Mã / Tên</th><th>Nhà cung cấp</th><th>Loại</th><th>Seats</th><th>Hết hạn</th><th>Trạng thái</th><th></th>
-        </tr>
-        ${list.map(l => {
-          const used = licenseSeatsUsed(l);
-          const st = licenseStatus(l);
-          return `
-          <tr class="rowclick" onclick="app.setView('license','${l.id}')">
-            <td><div class="cell-title">${esc(l.name)}</div><div class="cell-sub" style="font-family:var(--font-mono);">${esc(l.id)}</div></td>
-            <td class="cell-sub">${esc(l.vendor || "—")}</td>
-            <td class="cell-sub">${esc(l.type || "—")}</td>
-            <td><span class="pill ${used >= l.maxSeats ? 'pill-slate' : 'pill-brand'}">${used}/${l.maxSeats || 0}</span></td>
-            <td class="cell-sub">${l.expiryDate ? fmtDate(l.expiryDate) : "Vĩnh viễn"}</td>
-            <td><span class="pill ${LICENSE_STATUS_META[st.key]?.pill || 'pill-slate'}">${esc(st.key)}</span></td>
-            <td onclick="event.stopPropagation();">
-              <button class="btn btn-sm btn-ghost" onclick="app.openLicenseForm('${l.id}')"><i class="ph ph-pencil-simple"></i></button>
-            </td>
-          </tr>`;
-        }).join("")}
-      </table>
-    </div>`}
-  `;
-}
-
-export function renderLicenseDetail(id) {
-  const lic = state.licenses.find(x => x.id === id);
-  if (!lic) return emptyState("Không tìm thấy bản quyền", "Bản quyền có thể đã bị xoá.");
-
-  const used = licenseSeatsUsed(lic);
-  const seatsLeft = licenseSeatsLeft(lic);
-  const st = licenseStatus(lic);
-  const assignments = lic.assignments || [];
-  const history = lic.history || [];
-
-  return `
-    <div style="margin-bottom:16px;">
-      <button class="btn btn-sm btn-ghost" onclick="app.setView('licenses')"><i class="ph ph-arrow-left"></i> Quay lại danh sách</button>
-    </div>
-    <div class="detail-grid">
-      <div>
-        <div class="panel">
-          <div class="panel-head">
-            <h3><i class="ph ph-key"></i> ${esc(lic.id)} — ${esc(lic.name)}</h3>
-            <div style="display:flex; gap:8px;">
-              <button class="btn btn-sm btn-ghost" onclick="app.openLicenseForm('${lic.id}')"><i class="ph ph-pencil-simple"></i> Sửa</button>
-              <button class="btn btn-sm btn-danger" onclick="app.confirmDeleteLicense('${lic.id}')"><i class="ph ph-trash"></i> Xoá</button>
-            </div>
-          </div>
-          <div class="kv"><b>Mã bản quyền (nội bộ)</b><span style="font-family:var(--font-mono);">${esc(lic.id)}</span></div>
-          <div class="kv"><b>Nhà cung cấp</b><span>${esc(lic.vendor || "—")}</span></div>
-          <div class="kv"><b>Loại</b><span>${esc(lic.type || "—")}</span></div>
-          <div class="kv"><b>Key / Mã kích hoạt</b><span style="font-family:var(--font-mono);">${esc(lic.licenseKey || "—")}</span></div>
-          <div class="kv"><b>Ngày mua</b><span>${fmtDate(lic.purchaseDate)}</span></div>
-          <div class="kv"><b>Ngày hết hạn</b><span>${lic.expiryDate ? fmtDate(lic.expiryDate) : "Vĩnh viễn"}</span></div>
-          <div class="kv"><b>Giá mua</b><span>${fmtVND(lic.cost)}</span></div>
-          <div class="kv"><b>Trạng thái</b><span class="pill ${LICENSE_STATUS_META[st.key]?.pill || 'pill-slate'}">${esc(st.key)}</span></div>
-          ${lic.note ? `<div style="margin-top:16px;"><b style="font-size:12.5px; color:var(--text-muted); display:block; margin-bottom:8px;">Ghi chú</b><div class="specs-box">${esc(lic.note)}</div></div>` : ""}
-        </div>
-
-        <div class="panel">
-          <div class="panel-head"><h3><i class="ph ph-clock-counter-clockwise"></i> Lịch sử</h3></div>
-          ${history.length === 0 ? emptyState("Chưa có lịch sử", "") : `
-          <div class="timeline">
-            ${history.map(h => `
-              <div class="tl-item">
-                <div class="tl-date">${fmtDateTime(h.date)}</div>
-                <div class="tl-label">${esc(h.label)}</div>
-                <div class="tl-detail">
-                  ${h.to ? `Cấp cho: ${esc(h.to)}${h.dept ? " — " + esc(h.dept) : ""}<br>` : ""}
-                  ${h.from ? `Thu hồi từ: ${esc(h.from)}<br>` : ""}
-                  ${h.note ? esc(h.note) + "<br>" : ""}
-                  <span style="color:var(--text-muted);">Bởi: ${esc(h.by || "—")}</span>
-                </div>
-              </div>
-            `).join("")}
-          </div>`}
-        </div>
-      </div>
-
-      <div>
-        <div class="panel">
-          <div class="panel-head">
-            <h3><i class="ph ph-users-three"></i> Cấp phát (${used}/${lic.maxSeats || 0})</h3>
-            <button class="btn btn-sm btn-brand" ${seatsLeft <= 0 ? "disabled" : ""} onclick="app.openLicenseAssignForm('${lic.id}')">
-              <i class="ph ph-user-plus"></i> Cấp phát
-            </button>
-          </div>
-          ${seatsLeft <= 0 ? `<p style="color:var(--text-secondary); font-size:12.5px; margin-bottom:12px;">Đã cấp phát hết số lượng cho phép. Tăng số seats ở màn hình Sửa nếu cần cấp thêm.</p>` : ""}
-          ${assignments.length === 0 ? emptyState("Chưa cấp phát cho ai", "Bản quyền này chưa được gán cho nhân viên nào.") : `
-          <div class="table-responsive">
-            <table class="data">
-              <tr><th>Nhân viên</th><th>Thiết bị</th><th>Ngày cấp</th><th></th></tr>
-              ${assignments.map(a => `
-                <tr>
-                  <td><div class="cell-title">${esc(a.employeeName)}</div><div class="cell-sub">${esc(a.dept || "")}</div></td>
-                  <td class="cell-sub">${a.deviceLabel ? esc(a.deviceLabel) : "—"}</td>
-                  <td class="cell-sub">${fmtDate(a.assignedDate)}</td>
-                  <td><button class="btn btn-sm btn-ghost" onclick="app.confirmUnassignLicenseSeat('${lic.id}','${a.assignId}', '${esc(a.employeeName).replace(/'/g, "\\'")}')"><i class="ph ph-user-minus"></i></button></td>
-                </tr>`).join("")}
-            </table>
-          </div>`}
-        </div>
-      </div>
-    </div>
-  `;
-}
-
 // ---------- Reports & Exports (Báo cáo & Kiểm kê) ----------
 export function renderReports() {
   const total = state.devices.length;
@@ -848,25 +706,6 @@ export function renderReports() {
         </button>
         <button class="btn btn-brand" onclick="app.triggerImportFilePicker()">
           <i class="ph ph-file-arrow-up"></i> 2. Chọn file đã điền để nhập
-        </button>
-      </div>
-    </div>
-
-    <div class="panel" style="margin-top:24px;">
-      <div class="panel-head">
-        <h3><i class="ph ph-magic-wand"></i> Quét cấu hình thiết bị tự động</h3>
-      </div>
-      <p style="color:var(--text-secondary); font-size:13.5px; margin-bottom:16px;">
-        Thay vì gõ tay từng CPU/RAM/Ổ cứng, tải script bên dưới chạy trên các máy Windows để tự động lấy cấu hình thật
-        (CPU, RAM, ổ cứng, hệ điều hành, Serial, MAC, IP…) và xuất ra đúng định dạng cột của hệ thống.
-        Sau khi có file, dùng luôn nút "Chọn file đã điền để nhập" ở trên (đã hỗ trợ cả .csv) — không cần gõ lại tay.
-      </p>
-      <div style="display:flex; gap:12px; flex-wrap:wrap;">
-        <button class="btn btn-brand" onclick="app.downloadAutoConfigScript()">
-          <i class="ph ph-download-simple"></i> Tải script quét cấu hình (PowerShell — Windows)
-        </button>
-        <button class="btn btn-ghost" onclick="app.showAutoConfigInstructions()">
-          <i class="ph ph-info"></i> Hướng dẫn sử dụng
         </button>
       </div>
     </div>
@@ -903,11 +742,6 @@ export function renderReports() {
         <div class="ico"><i class="ph ph-clipboard-text"></i></div>
         <h4>Phiếu kiểm kê thiết bị</h4>
         <p>Danh sách thiết bị kèm cột trống để kiểm kê thực tế và ký xác nhận, in ra dùng khi kiểm kê định kỳ.</p>
-      </button>
-      <button class="tile" onclick="app.exportLicensesExcel()">
-        <div class="ico"><i class="ph ph-key"></i></div>
-        <h4>Danh sách bản quyền</h4>
-        <p>Xuất ${state.licenses.length} bản quyền kèm số seats đã cấp phát và danh sách người dùng ra Excel.</p>
       </button>
     </div>
 
@@ -965,14 +799,6 @@ export function renderSettings() {
         <div class="field">
           <label>Cảnh báo khi chi phí sửa chữa ≥ (% giá mua)</label>
           <input type="number" id="setRepairWarn" value="${s.repairCostWarnPercent}" min="0" max="200">
-        </div>
-        <div class="field">
-          <label>Số seats mặc định khi thêm bản quyền mới</label>
-          <input type="number" id="setDefaultLicenseSeats" value="${s.defaultLicenseSeats ?? 5}" min="1">
-        </div>
-        <div class="field">
-          <label>Cảnh báo bản quyền trước khi hết hạn (ngày)</label>
-          <input type="number" id="setLicenseWarnDays" value="${s.licenseExpiryWarnDays ?? 30}" min="0">
         </div>
         <button class="btn btn-brand" onclick="app.saveSettings()"><i class="ph ph-floppy-disk"></i> Lưu cấu hình</button>
       </div>

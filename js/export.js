@@ -82,29 +82,6 @@ function inventoryChecklistRows(list) {
   return rows;
 }
 
-function licensesSheetRows(list) {
-  const header = ["Mã BQ", "Tên phần mềm", "Nhà cung cấp", "Loại", "Key", "Seats tối đa", "Đã cấp phát", "Còn trống",
-    "Ngày mua", "Ngày hết hạn", "Giá mua (₫)", "Ghi chú"];
-  const rows = [header];
-  list.forEach(l => {
-    const used = (l.assignments || []).length;
-    rows.push([
-      l.id, l.name, l.vendor || "", l.type || "", l.licenseKey || "", l.maxSeats || 0, used, Math.max(0, (l.maxSeats || 0) - used),
-      fmtDate(l.purchaseDate), l.expiryDate ? fmtDate(l.expiryDate) : "Vĩnh viễn", l.cost || 0, l.note || ""
-    ]);
-  });
-  return rows;
-}
-
-function licenseAssignmentsSheetRows(list) {
-  const header = ["Mã BQ", "Tên phần mềm", "Nhân viên", "Bộ phận", "Thiết bị gắn kèm", "Ngày cấp phát", "Ghi chú"];
-  const rows = [header];
-  list.forEach(l => (l.assignments || []).forEach(a => rows.push([
-    l.id, l.name, a.employeeName || "", a.dept || "", a.deviceLabel || "", fmtDate(a.assignedDate), a.note || ""
-  ])));
-  return rows;
-}
-
 function sheetFromRows(rows, merges) {
   const ws = window.XLSX.utils.aoa_to_sheet(rows);
   ws["!cols"] = autoWidth(rows);
@@ -116,12 +93,23 @@ function download(wb, filename) {
   window.XLSX.writeFile(wb, filename);
 }
 
-export function exportDevicesExcel(list) {
+function slugify(s) {
+  return String(s || "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/gi, "d")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .toLowerCase();
+}
+
+export function exportDevicesExcel(list, categoryLabel) {
   if (!ensureXLSX()) return;
   const wb = window.XLSX.utils.book_new();
-  window.XLSX.utils.book_append_sheet(wb, sheetFromRows(devicesSheetRows(list || state.devices)), "Danh sách thiết bị");
-  download(wb, `Danh-sach-thiet-bi-${todayStamp()}.xlsx`);
-  toast("Đã xuất danh sách thiết bị (Excel)");
+  const sheetTitle = (categoryLabel ? `DS ${categoryLabel}` : "Danh sách thiết bị").slice(0, 31);
+  window.XLSX.utils.book_append_sheet(wb, sheetFromRows(devicesSheetRows(list || state.devices)), sheetTitle);
+  const slug = categoryLabel ? `-${slugify(categoryLabel)}` : "";
+  download(wb, `Danh-sach-thiet-bi${slug}-${todayStamp()}.xlsx`);
+  toast(`Đã xuất ${categoryLabel ? categoryLabel.toLowerCase() : "danh sách thiết bị"} (Excel)`);
 }
 
 export function exportEmployeesExcel(list) {
@@ -154,24 +142,12 @@ export function exportInventoryChecklist(list) {
   toast("Đã xuất phiếu kiểm kê (Excel)");
 }
 
-export function exportLicensesExcel(list) {
-  if (!ensureXLSX()) return;
-  const data = list || state.licenses;
-  const wb = window.XLSX.utils.book_new();
-  window.XLSX.utils.book_append_sheet(wb, sheetFromRows(licensesSheetRows(data)), "Danh sách bản quyền");
-  window.XLSX.utils.book_append_sheet(wb, sheetFromRows(licenseAssignmentsSheetRows(data)), "Cấp phát");
-  download(wb, `Danh-sach-ban-quyen-${todayStamp()}.xlsx`);
-  toast("Đã xuất danh sách bản quyền (Excel)");
-}
-
 export function exportFullReport() {
   if (!ensureXLSX()) return;
   const wb = window.XLSX.utils.book_new();
   window.XLSX.utils.book_append_sheet(wb, sheetFromRows(devicesSheetRows(state.devices)), "Danh sách thiết bị");
   window.XLSX.utils.book_append_sheet(wb, sheetFromRows(employeesSheetRows(state.employees)), "Danh sách nhân viên");
   window.XLSX.utils.book_append_sheet(wb, sheetFromRows(historySheetRows()), "Lịch sử nghiệp vụ");
-  window.XLSX.utils.book_append_sheet(wb, sheetFromRows(licensesSheetRows(state.licenses)), "Danh sách bản quyền");
-  window.XLSX.utils.book_append_sheet(wb, sheetFromRows(licenseAssignmentsSheetRows(state.licenses)), "Cấp phát bản quyền");
   const merges = [
     { s: { r: 0, c: 0 }, e: { r: 0, c: 9 } },
     { s: { r: 1, c: 0 }, e: { r: 1, c: 9 } },
