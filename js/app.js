@@ -18,7 +18,9 @@ import {
 import { toast, openModal, closeModal } from './ui.js';
 import {
   openDeviceForm, submitDeviceForm, updateDeviceFormAttrs,
+  deleteDevice, confirmDeleteDevice,
   openEmployeeForm, submitEmployeeForm,
+  deleteEmployee, confirmDeleteEmployee,
   openOpsForm, submitOpsForm,
   refreshOpsDeviceChecklist, filterOpsDeviceList, toggleAllOpsDevices,
   openRepairForm, submitRepairForm
@@ -289,6 +291,12 @@ window.app.toast = toast;
 window.app.openDeviceForm = (id) => openDeviceForm(id, refreshCurrentView);
 window.app.submitDeviceForm = (id) => submitDeviceForm(id);
 window.app.updateDeviceFormAttrs = () => updateDeviceFormAttrs();
+window.app.deleteDevice = (id) => deleteDevice(id, () => {
+  // Nếu đang xem trang chi tiết của chính thiết bị vừa xoá, quay về danh sách thay vì hiện trang trống.
+  if (state.view === "device" && state.currentId === id) setView("devices");
+  else refreshCurrentView();
+});
+window.app.confirmDeleteDevice = (id) => confirmDeleteDevice(id);
 window.app.printAssetLabel = (id) => printAssetLabel(id);
 window.app.printAssetLabelMini = (id) => printAssetLabelMini(id);
 window.app.closeReceiptPreview = () => closeReceiptPreview();
@@ -319,6 +327,11 @@ window.app.submitRepairForm = (deviceId) => submitRepairForm(deviceId);
 // --- Employees ---
 window.app.openEmployeeForm = (id) => openEmployeeForm(id, refreshCurrentView);
 window.app.submitEmployeeForm = (id) => submitEmployeeForm(id);
+window.app.deleteEmployee = (id) => deleteEmployee(id, () => {
+  if (state.view === "employee" && state.currentId === id) setView("employees");
+  else refreshCurrentView();
+});
+window.app.confirmDeleteEmployee = (id) => confirmDeleteEmployee(id);
 
 // --- Operations ---
 window.app.openOpsForm = (type) => openOpsForm(type, refreshCurrentView);

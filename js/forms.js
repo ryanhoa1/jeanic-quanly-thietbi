@@ -2,7 +2,8 @@ import { state, DEPARTMENTS, CONDITIONS, DEVICE_TYPES, BRANDS, STATUS_META, ASSE
 import {
   addDeviceRecord, updateDeviceRecord, addEmployeeRecord, updateEmployeeRecord,
   handoverDevice, returnDevice, transferDevice, retireDevice, addRepairRecord,
-  persistDevices, persistEmployees, persistMeta, saveGlobalLog
+  persistDevices, persistEmployees, persistMeta, saveGlobalLog,
+  findDuplicateEmployee, findDuplicateDevice, deleteDeviceRecord, deleteEmployeeRecord
 } from './db.js';
 import { nextDeviceId, nextEmployeeId, todayISO, esc, fmtVND } from './helpers.js';
 import { openModal, closeModal, toast } from './ui.js';
@@ -161,6 +162,9 @@ export async function submitDeviceForm(id) {
     note: document.getElementById("fNote").value.trim()
   };
 
+  const dup = findDuplicateDevice(payload, id || null);
+  if (dup) { toast(`⚠️ Trùng dữ liệu: ${dup.message}`, "err"); return; }
+
   const byEmail = currentUser?.email;
 
   if (id) {
@@ -174,6 +178,35 @@ export async function submitDeviceForm(id) {
     await persistMeta();
     toast("Đã thêm thiết bị mới");
   }
+  closeModal();
+  if (window.__deviceFormRefresh) window.__deviceFormRefresh();
+}
+
+// ---------- Device Delete ----------
+export async function deleteDevice(id, refresh) {
+  const d = state.devices.find(x => x.id === id);
+  if (!d) { toast("Không tìm thấy thiết bị", "err"); return; }
+
+  const body = `
+    <p>Bạn có chắc chắn muốn <b>xoá vĩnh viễn</b> thiết bị <b>${esc(d.id)} — ${esc(d.type)}</b> (${esc(d.brand)})?</p>
+    <p style="color:var(--text-muted); font-size:13px; margin-top:8px;">
+      Toàn bộ lịch sử bàn giao, sửa chữa của thiết bị này sẽ bị xoá và không thể khôi phục.
+      ${d.status === "Đang sử dụng" ? `<br><b style="color:#F87171;">Lưu ý: thiết bị này đang được bàn giao cho ${esc(d.holderName || "")}.</b>` : ""}
+    </p>
+  `;
+  const foot = `
+    <button class="btn btn-ghost" onclick="app.closeModal()">Huỷ</button>
+    <button class="btn btn-danger" onclick="app.confirmDeleteDevice('${id}')"><i class="ph ph-trash"></i> Xoá vĩnh viễn</button>
+  `;
+  openModal("Xác nhận xoá thiết bị", body, foot);
+  window.__deviceFormRefresh = refresh;
+}
+
+export async function confirmDeleteDevice(id) {
+  const result = deleteDeviceRecord(id);
+  if (!result.ok) { toast(result.reason, "err"); closeModal(); return; }
+  await persistDevices();
+  toast("Đã xoá thiết bị");
   closeModal();
   if (window.__deviceFormRefresh) window.__deviceFormRefresh();
 }
@@ -239,6 +272,9 @@ export async function submitEmployeeForm(id) {
     status: document.getElementById("fStatus").value
   };
 
+  const dup = findDuplicateEmployee(payload, id || null);
+  if (dup) { toast(`⚠️ Trùng dữ liệu: ${dup.message}`, "err"); return; }
+
   if (id) {
     updateEmployeeRecord(id, payload);
     await persistEmployees();
@@ -250,6 +286,41 @@ export async function submitEmployeeForm(id) {
     await persistMeta();
     toast("Đã thêm nhân viên mới");
   }
+  closeModal();
+  if (window.__employeeFormRefresh) window.__employeeFormRefresh();
+}
+
+// ---------- Employee Delete ----------
+export async function deleteEmployee(id, refresh) {
+  const e = state.employees.find(x => x.id === id);
+  if (!e) { toast("Không tìm thấy nhân viên", "err"); return; }
+
+  const holding = state.devices.filter(d => d.holderId === id && d.status === "Đang sử dụng");
+
+  const body = `
+    <p>Bạn có chắc chắn muốn <b>xoá vĩnh viễn</b> nhân viên <b>${esc(e.id)} — ${esc(e.name)}</b>?</p>
+    ${holding.length > 0 ? `
+      <p style="color:#F87171; font-size:13px; margin-top:8px;">
+        Nhân viên này đang giữ ${holding.length} thiết bị (${holding.map(d => esc(d.id)).join(", ")}).
+        Vui lòng <b>thu hồi thiết bị</b> trước khi xoá nhân viên.
+      </p>
+    ` : `
+      <p style="color:var(--text-muted); font-size:13px; margin-top:8px;">Hành động này không thể khôi phục.</p>
+    `}
+  `;
+  const foot = `
+    <button class="btn btn-ghost" onclick="app.closeModal()">Huỷ</button>
+    <button class="btn btn-danger" ${holding.length > 0 ? "disabled" : ""} onclick="app.confirmDeleteEmployee('${id}')"><i class="ph ph-trash"></i> Xoá vĩnh viễn</button>
+  `;
+  openModal("Xác nhận xoá nhân viên", body, foot);
+  window.__employeeFormRefresh = refresh;
+}
+
+export async function confirmDeleteEmployee(id) {
+  const result = deleteEmployeeRecord(id);
+  if (!result.ok) { toast(result.reason, "err"); closeModal(); return; }
+  await persistEmployees();
+  toast("Đã xoá nhân viên");
   closeModal();
   if (window.__employeeFormRefresh) window.__employeeFormRefresh();
 }

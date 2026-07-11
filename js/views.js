@@ -215,6 +215,9 @@ export function renderDevices(filter) {
                 <button class="btn btn-sm btn-ghost" onclick="app.printAssetLabelMini('${d.id}')" title="In tem nhỏ 20×20mm">
                   <i class="ph ph-tag-simple"></i>
                 </button>
+                <button class="btn btn-sm btn-ghost btn-danger-ghost" onclick="app.deleteDevice('${d.id}')" title="Xoá thiết bị">
+                  <i class="ph ph-trash"></i>
+                </button>
               </td>
             </tr>
           `).join("")}
@@ -253,6 +256,7 @@ export function renderDeviceDetail(id) {
               <button class="btn btn-sm btn-ghost" onclick="app.openDeviceForm('${d.id}')"><i class="ph ph-pencil-simple"></i> Sửa</button>
               <button class="btn btn-sm btn-ghost" onclick="app.printAssetLabel('${d.id}')"><i class="ph ph-qr-code"></i> In tem (A4)</button>
               <button class="btn btn-sm btn-ghost" onclick="app.printAssetLabelMini('${d.id}')"><i class="ph ph-tag-simple"></i> In tem 20×20mm</button>
+              <button class="btn btn-sm btn-danger" onclick="app.deleteDevice('${d.id}')"><i class="ph ph-trash"></i> Xoá</button>
             </div>
           </div>
           <div class="kv"><b>Mã thiết bị</b><span style="font-family:var(--font-mono);">${esc(d.id)}</span></div>
@@ -393,7 +397,10 @@ export function renderEmployees(filter) {
               <td class="cell-sub">${esc(e.email || "—")}<br>${esc(e.phone || "")}</td>
               <td><span class="pill ${e.status === 'Đang làm việc' ? 'pill-success' : 'pill-slate'}">${esc(e.status || "—")}</span></td>
               <td>${deviceCountOf(e.id)}</td>
-              <td onclick="event.stopPropagation();"><button class="btn btn-sm btn-ghost" onclick="app.openEmployeeForm('${e.id}')"><i class="ph ph-pencil-simple"></i></button></td>
+              <td onclick="event.stopPropagation();">
+                <button class="btn btn-sm btn-ghost" onclick="app.openEmployeeForm('${e.id}')" title="Sửa"><i class="ph ph-pencil-simple"></i></button>
+                <button class="btn btn-sm btn-ghost btn-danger-ghost" onclick="app.deleteEmployee('${e.id}')" title="Xoá"><i class="ph ph-trash"></i></button>
+              </td>
             </tr>
           `).join("")}
         </table>
@@ -558,7 +565,10 @@ export function renderEmployeeDetail(id) {
         <div class="panel">
           <div class="panel-head">
             <h3><i class="ph ph-user"></i> ${esc(e.name)}</h3>
-            <button class="btn btn-sm btn-ghost" onclick="app.openEmployeeForm('${e.id}')"><i class="ph ph-pencil-simple"></i> Sửa</button>
+            <div style="display:flex; gap:8px;">
+              <button class="btn btn-sm btn-ghost" onclick="app.openEmployeeForm('${e.id}')"><i class="ph ph-pencil-simple"></i> Sửa</button>
+              <button class="btn btn-sm btn-danger" onclick="app.deleteEmployee('${e.id}')"><i class="ph ph-trash"></i> Xoá</button>
+            </div>
           </div>
           <div class="kv"><b>Mã nhân viên</b><span style="font-family:var(--font-mono);">${esc(e.id)}</span></div>
           <div class="kv"><b>Bộ phận</b><span>${esc(e.dept || "—")}</span></div>

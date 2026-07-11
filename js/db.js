@@ -284,6 +284,13 @@ export function addRepairRecord(id, repair, byEmail) {
 
 function todayISOLocal() { return new Date().toISOString().slice(0, 10); }
 
+export function deleteDeviceRecord(id) {
+  const idx = state.devices.findIndex(x => x.id === id);
+  if (idx === -1) return { ok: false, reason: "Không tìm thấy thiết bị." };
+  state.devices.splice(idx, 1);
+  return { ok: true };
+}
+
 // ---------- Employee CRUD ----------
 export function addEmployeeRecord(empData) {
   const emp = { ...empData };
@@ -297,6 +304,89 @@ export function updateEmployeeRecord(id, patch) {
   if (!e) return null;
   Object.assign(e, patch);
   return e;
+}
+
+export function deleteEmployeeRecord(id) {
+  const idx = state.employees.findIndex(x => x.id === id);
+  if (idx === -1) return { ok: false, reason: "Không tìm thấy nhân viên." };
+  const holding = state.devices.filter(d => d.holderId === id && d.status === "Đang sử dụng");
+  if (holding.length > 0) {
+    return {
+      ok: false,
+      reason: `Không thể xoá — nhân viên đang giữ ${holding.length} thiết bị (${holding.map(d => d.id).join(", ")}). Vui lòng thu hồi thiết bị trước khi xoá nhân viên.`
+    };
+  }
+  state.employees.splice(idx, 1);
+  return { ok: true };
+}
+
+// ---------- Duplicate detection ----------
+// Chuẩn hoá chuỗi để so sánh không phân biệt hoa/thường và khoảng trắng thừa.
+function normKey(s) {
+  return (s === undefined || s === null) ? "" : String(s).trim().toLowerCase();
+}
+function normPhone(s) {
+  return (s === undefined || s === null) ? "" : String(s).replace(/\D/g, "");
+}
+
+// Kiểm tra trùng lặp nhân viên theo Email, Số điện thoại (các định danh duy nhất),
+// và theo cặp Họ tên + Bộ phận (rất có thể là nhập trùng cùng một người).
+// excludeId: bỏ qua chính bản ghi đang sửa (trường hợp cập nhật).
+export function findDuplicateEmployee(payload, excludeId) {
+  const name = normKey(payload.name);
+  const dept = normKey(payload.dept);
+  const email = normKey(payload.email);
+  const phone = normPhone(payload.phone);
+
+  for (const e of state.employees) {
+    if (excludeId && e.id === excludeId) continue;
+
+    if (email && normKey(e.email) === email) {
+      return { record: e, field: "email", message: `Email "${payload.email}" đã được dùng cho nhân viên ${e.id} — ${e.name}.` };
+    }
+    const ePhone = normPhone(e.phone);
+    if (phone && ePhone && ePhone === phone) {
+      return { record: e, field: "phone", message: `Số điện thoại "${payload.phone}" đã được dùng cho nhân viên ${e.id} — ${e.name}.` };
+    }
+    if (name && dept && normKey(e.name) === name && normKey(e.dept) === dept) {
+      return { record: e, field: "name", message: `Nhân viên "${payload.name}" — bộ phận "${payload.dept}" đã tồn tại (mã ${e.id}). Có thể bạn đã nhập trùng.` };
+    }
+  }
+  return null;
+}
+
+// Kiểm tra trùng lặp thiết bị theo các định danh duy nhất trong "Thông số chuyên biệt"
+// (Số Serial / IMEI / MAC — tuỳ nhóm tài sản), và theo Số hoá đơn + Thông số kỹ thuật
+// giống hệt (rất có thể là nhập trùng cùng một lần mua).
+export function findDuplicateDevice(payload, excludeId) {
+  const uniqueAttrKeys = ["serial", "imei", "mac"];
+  const attrs = payload.attrs || {};
+
+  for (const key of uniqueAttrKeys) {
+    const val = normKey(attrs[key]);
+    if (!val) continue;
+    for (const d of state.devices) {
+      if (excludeId && d.id === excludeId) continue;
+      if (normKey(d.attrs && d.attrs[key]) === val) {
+        const labelMap = { serial: "Số Serial", imei: "IMEI", mac: "Địa chỉ MAC" };
+        return { record: d, field: key, message: `${labelMap[key]} "${attrs[key]}" đã tồn tại ở thiết bị ${d.id} — ${d.type}.` };
+      }
+    }
+  }
+
+  const invoiceNo = normKey(payload.invoiceNo);
+  const specs = normKey(payload.specs);
+  if (invoiceNo && specs) {
+    const type = normKey(payload.type);
+    const brand = normKey(payload.brand);
+    for (const d of state.devices) {
+      if (excludeId && d.id === excludeId) continue;
+      if (normKey(d.invoiceNo) === invoiceNo && normKey(d.specs) === specs && normKey(d.type) === type && normKey(d.brand) === brand) {
+        return { record: d, field: "invoice", message: `Thiết bị với Số hoá đơn "${payload.invoiceNo}" và thông số kỹ thuật giống hệt đã tồn tại (mã ${d.id}). Có thể bạn đã nhập trùng.` };
+      }
+    }
+  }
+  return null;
 }
 
 // ---------- Operations: handover / return / transfer ----------

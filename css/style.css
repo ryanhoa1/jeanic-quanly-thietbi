@@ -91,6 +91,18 @@ body {
 .btn-ghost { background: transparent; border-color: transparent; }
 .btn-ghost:hover:not(:disabled) { background: var(--bg-surface); color: #fff; }
 .btn-sm { padding: 6px 12px; font-size: 12px; }
+.btn-danger {
+  background: var(--accent-danger-glass);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #F87171;
+}
+.btn-danger:hover:not(:disabled) {
+  background: var(--accent-danger);
+  border-color: var(--accent-danger);
+  color: #fff;
+}
+.btn-ghost.btn-danger-ghost { color: #F87171; }
+.btn-ghost.btn-danger-ghost:hover:not(:disabled) { background: var(--accent-danger-glass); color: #F87171; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* Typography */
