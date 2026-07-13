@@ -276,9 +276,14 @@ export async function submitEmployeeForm(id) {
   if (dup) { toast(`⚠️ Trùng dữ liệu: ${dup.message}`, "err"); return; }
 
   if (id) {
-    updateEmployeeRecord(id, payload);
+    const result = updateEmployeeRecord(id, payload);
     await persistEmployees();
-    toast("Đã cập nhật nhân viên");
+    if (result && result.devicesTouched > 0) {
+      await persistDevices();
+      toast(`Đã cập nhật nhân viên và đồng bộ tên trên ${result.devicesTouched} thiết bị/lịch sử liên quan`);
+    } else {
+      toast("Đã cập nhật nhân viên");
+    }
   } else {
     const newEmp = { id: nextEmployeeId(), ...payload };
     addEmployeeRecord(newEmp);

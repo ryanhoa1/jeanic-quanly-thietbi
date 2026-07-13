@@ -302,8 +302,39 @@ export function addEmployeeRecord(empData) {
 export function updateEmployeeRecord(id, patch) {
   const e = state.employees.find(x => x.id === id);
   if (!e) return null;
+
+  const oldName = e.name;
+  const oldDept = e.dept;
   Object.assign(e, patch);
-  return e;
+
+  const nameChanged = patch.name !== undefined && patch.name !== oldName;
+  const deptChanged = patch.dept !== undefined && patch.dept !== oldDept;
+  let devicesTouched = 0;
+
+  // Đồng bộ tên/bộ phận đã đổi xuống dữ liệu thiết bị: thiết bị đang được
+  // nhân viên này giữ (holderName/dept hiện tại), và các dòng lịch sử
+  // bàn giao/thu hồi/điều chuyển trước đây (to/from) — vì các nơi này lưu
+  // tên dạng chuỗi tại thời điểm phát sinh, không tự cập nhật theo hồ sơ
+  // nhân viên. Lưu ý: nếu có 2 nhân viên trùng tên hệt nhau trước khi đổi,
+  // lịch sử của cả hai đều có thể bị đổi tên theo do chỉ so khớp theo tên.
+  if (nameChanged || deptChanged) {
+    state.devices.forEach(d => {
+      let touched = false;
+      if (d.holderId === id) {
+        if (nameChanged) { d.holderName = e.name; touched = true; }
+        if (deptChanged) { d.dept = e.dept; touched = true; }
+      }
+      if (nameChanged && Array.isArray(d.history)) {
+        d.history.forEach(h => {
+          if (h.to === oldName) { h.to = e.name; touched = true; }
+          if (h.from === oldName) { h.from = e.name; touched = true; }
+        });
+      }
+      if (touched) devicesTouched++;
+    });
+  }
+
+  return { employee: e, devicesTouched };
 }
 
 export function deleteEmployeeRecord(id) {
