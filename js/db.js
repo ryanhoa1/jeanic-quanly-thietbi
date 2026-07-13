@@ -299,6 +299,33 @@ export function addEmployeeRecord(empData) {
   return emp;
 }
 
+// Quét lại toàn bộ thiết bị và đồng bộ tên/bộ phận người giữ theo đúng hồ sơ
+// nhân viên hiện tại (dựa theo holderId — nguồn dữ liệu đáng tin cậy nhất).
+// Dùng để sửa các bản ghi cũ bị lệch tên do đổi tên nhân viên TRƯỚC KHI có
+// tính năng tự đồng bộ (updateEmployeeRecord ở trên chỉ xử lý cho các lần
+// đổi tên SAU khi tính năng này tồn tại).
+export function resyncHolderNamesFromEmployees() {
+  let devicesTouched = 0;
+
+  state.devices.forEach(d => {
+    if (d.holderId) {
+      const emp = state.employees.find(x => x.id === d.holderId);
+      if (emp) {
+        let touched = false;
+        if (d.holderName !== emp.name) { d.holderName = emp.name; touched = true; }
+        if (d.dept !== emp.dept) { d.dept = emp.dept; touched = true; }
+        if (touched) devicesTouched++;
+      }
+    }
+  });
+
+  // Lịch sử bàn giao/thu hồi/điều chuyển cũ không lưu Mã NV kèm theo (chỉ lưu
+  // tên dạng chuỗi), nên không thể tự đối chiếu an toàn ở đây — nếu có dòng
+  // lịch sử cũ còn hiển thị tên sai, vui lòng sửa tên nhân viên một lần nữa
+  // (đổi rồi đổi lại) để kích hoạt việc tự đồng bộ theo tên.
+  return { devicesTouched };
+}
+
 export function updateEmployeeRecord(id, patch) {
   const e = state.employees.find(x => x.id === id);
   if (!e) return null;
@@ -320,7 +347,12 @@ export function updateEmployeeRecord(id, patch) {
   if (nameChanged || deptChanged) {
     state.devices.forEach(d => {
       let touched = false;
-      if (d.holderId === id) {
+      // Khớp theo holderId là chính, nhưng nếu vì lý do gì đó holderId của
+      // thiết bị bị lệch/thiếu (không trỏ đúng nhân viên), vẫn nhận diện
+      // được qua tên cũ đang lưu ở holderName, để tự "chữa" luôn liên kết.
+      const matchesHolder = d.holderId === id || (oldName && d.holderName === oldName);
+      if (matchesHolder) {
+        if (d.holderId !== id) d.holderId = id; // tự sửa liên kết bị lệch
         if (nameChanged) { d.holderName = e.name; touched = true; }
         if (deptChanged) { d.dept = e.dept; touched = true; }
       }

@@ -5,7 +5,7 @@ import {
   listAccounts, setAccountRole, setAccountActive, setAccountEmployeeLink,
   startMfaEnrollment, confirmMfaEnrollment, disableMfa, verifyMfaLoginToken
 } from './auth.js';
-import { loadAll, state, persistSettings, ASSET_CATEGORIES, ASSET_GROUPS, getCategoryMeta, devicesInCategory } from './db.js';
+import { loadAll, state, persistSettings, ASSET_CATEGORIES, ASSET_GROUPS, getCategoryMeta, devicesInCategory, resyncHolderNamesFromEmployees, persistDevices } from './db.js';
 import {
   renderDashboard, renderDevices, renderDeviceDetail,
   renderEmployees, renderEmployeeDetail, renderOps, renderReports, renderHistoryTable, renderSettings, renderAccountsTable,
@@ -276,6 +276,16 @@ window.app.exportDevicesForCategory = (catId) => {
   exportDevicesExcel(devicesInCategory(catId), label);
 };
 window.app.downloadEmployeeImportTemplate = downloadEmployeeImportTemplate;
+window.app.resyncHolderNames = async () => {
+  const result = resyncHolderNamesFromEmployees();
+  if (result.devicesTouched > 0) {
+    await persistDevices();
+    toast(`Đã đồng bộ lại ${result.devicesTouched} thiết bị theo đúng hồ sơ nhân viên hiện tại`);
+    refreshCurrentView();
+  } else {
+    toast("Không có thiết bị nào bị lệch tên/bộ phận — dữ liệu đã đồng bộ");
+  }
+};
 window.app.triggerEmployeeImportFilePicker = triggerEmployeeImportFilePicker;
 window.app.handleEmployeeImportFileSelected = handleEmployeeImportFileSelected;
 window.app.confirmEmployeeImport = confirmEmployeeImport;

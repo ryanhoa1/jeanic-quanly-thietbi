@@ -814,6 +814,16 @@ export function renderSettings() {
       </div>
 
       <div class="panel">
+        <div class="panel-head"><h3><i class="ph ph-arrows-clockwise"></i> Bảo trì dữ liệu</h3></div>
+        <p style="color:var(--text-secondary); font-size:13.5px; margin-bottom:16px;">
+          Nếu bạn đã đổi tên hoặc bộ phận của một nhân viên <b>trước khi</b> có tính năng tự đồng bộ,
+          các thiết bị họ đang giữ có thể vẫn hiển thị tên/bộ phận cũ. Bấm nút dưới đây để quét và
+          cập nhật lại toàn bộ thiết bị theo đúng hồ sơ nhân viên hiện tại (dựa theo liên kết Mã NV).
+        </p>
+        <button class="btn btn-ghost" onclick="app.resyncHolderNames()"><i class="ph ph-arrows-clockwise"></i> Đồng bộ lại tên người dùng trên thiết bị</button>
+      </div>
+
+      <div class="panel">
         <div class="panel-head"><h3><i class="ph ph-users-three"></i> Quản lý tài khoản</h3></div>
         <div id="accountsBox">${emptyState("Đang tải...", "")}</div>
       </div>
