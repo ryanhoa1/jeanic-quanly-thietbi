@@ -161,22 +161,31 @@ export function buildReceiptHTML(payload) {
 
 // ---------- Biên bản kiểm kê tài sản theo nhân viên (phục vụ kiểm kê hàng năm) ----------
 
+function truncateText(str, max) {
+  if (!str) return "";
+  const s = String(str).trim();
+  return s.length > max ? s.slice(0, max - 1).trimEnd() + "…" : s;
+}
+
 // Ghép thông số kỹ thuật (specs tự do + các thuộc tính chuyên biệt theo nhóm tài
 // sản, vd CPU/RAM/Ổ cứng/Hệ điều hành...) và số Serial thành 1 dòng dễ đọc, để
-// phiếu kiểm kê không còn "sơ sài" như chỉ có Loại/Thương hiệu.
+// phiếu kiểm kê không còn "sơ sài" như chỉ có Loại/Thương hiệu. Có giới hạn độ
+// dài để không làm dòng bảng phình to bất thường (vd specs nhập nguyên đoạn mô
+// tả sản phẩm dài), giữ trang in luôn gọn trong khổ A4.
 function deviceDetailLine(d) {
-  const parts = [];
-  if (d.specs) parts.push(esc(d.specs));
+  const rawParts = [];
+  if (d.specs) rawParts.push(truncateText(d.specs, 90));
   const catId = getCategoryId(d.type);
   const fields = CATEGORY_FIELDS[catId] || [];
   fields.forEach(f => {
     if (f.key === "serial") return;
     const v = d.attrs && d.attrs[f.key];
-    if (v) parts.push(`${esc(f.label)}: ${esc(v)}`);
+    if (v) rawParts.push(`${f.label}: ${truncateText(v, 30)}`);
   });
   const serial = d.attrs && d.attrs.serial;
-  if (serial) parts.push(`S/N: ${esc(serial)}`);
-  return parts.length ? parts.join(" · ") : "—";
+  if (serial) rawParts.push(`S/N: ${truncateText(serial, 30)}`);
+  const line = rawParts.length ? rawParts.join(" · ") : "—";
+  return esc(truncateText(line, 140));
 }
 
 // Ngày cấp phát gần nhất (bàn giao/điều chuyển) lấy từ lịch sử thiết bị; nếu
@@ -187,53 +196,47 @@ function deviceIssuedDate(d) {
   return dateStr ? fmtDate(dateStr) : "—";
 }
 
-function inventorySummaryPageHTML(rows, s) {
-  const totalDevices = rows.reduce((sum, r) => sum + r.devices.length, 0);
+function reportHeaderHTML(s) {
   return `
-    <div class="bb-page">
-      <div class="bb-head">
-        <img class="bb-logo" src="assets/logo.jpg" alt="Logo">
-        <div class="co">${esc(s.companyName || "Công ty TNHH Jeanic Garment")}</div>
-        ${s.companyAddress ? `<div class="dept">${esc(s.companyAddress)}</div>` : ""}
-        <h1>DANH SÁCH KIỂM KÊ TÀI SẢN CNTT THEO NHÂN VIÊN</h1>
-        <div>${fmtDateVN(new Date().toISOString())}</div>
-      </div>
-
-      <div class="bb-block">
-        <h4>DANH SÁCH TỔNG HỢP (${rows.length} nhân viên)</h4>
-        <table class="bb-table">
-          <tr><th>STT</th><th>Mã NV</th><th>Họ tên</th><th>Bộ phận</th><th>Chức vụ</th><th>Số TB</th><th>Đã kiểm kê</th></tr>
-          ${rows.map((r, i) => `
-            <tr>
-              <td>${i + 1}</td>
-              <td>${esc(r.emp.id)}</td>
-              <td>${esc(r.emp.name)}</td>
-              <td>${esc(r.emp.dept || "—")}</td>
-              <td>${esc(r.emp.position || "—")}</td>
-              <td>${r.devices.length}</td>
-              <td></td>
-            </tr>
-          `).join("")}
-        </table>
-      </div>
-
-      <div class="bb-meta-foot">Tổng số nhân viên: ${rows.length} &nbsp;·&nbsp; Tổng số thiết bị đang bàn giao: ${totalDevices} &nbsp;·&nbsp; Ngày lập: ${fmtDate(new Date().toISOString())}</div>
+    <div class="bb-head">
+      <img class="bb-logo" src="assets/logo.jpg" alt="Logo">
+      <div class="co">${esc(s.companyName || "Công ty TNHH Jeanic Garment")}</div>
+      ${s.companyAddress ? `<div class="dept">${esc(s.companyAddress)}</div>` : ""}
+      <h1>DANH SÁCH KIỂM KÊ TÀI SẢN CNTT THEO NHÂN VIÊN</h1>
+      <div>${fmtDateVN(new Date().toISOString())}</div>
     </div>
   `;
 }
 
-// Tiêu đề chung cho toàn bộ phần chi tiết — chỉ in 1 lần ở đầu phần chi tiết,
-// KHÔNG lặp lại theo từng nhân viên (khác với bản cũ mỗi nhân viên 1 trang có
-// logo/tiêu đề riêng), để không lãng phí chỗ trống trên giấy.
-function inventoryDetailHeaderHTML(s) {
+function inventorySummaryBlockHTML(rows) {
+  const totalDevices = rows.reduce((sum, r) => sum + r.devices.length, 0);
   return `
-    <div class="bb-detail-head">
-      <img class="bb-logo" src="assets/logo.jpg" alt="Logo">
-      <div class="co">${esc(s.companyName || "Công ty TNHH Jeanic Garment")}</div>
-      <h2>Chi tiết kiểm kê tài sản CNTT theo từng nhân viên</h2>
-      <div class="sub-date">Ngày kiểm kê: ${fmtDateVN(new Date().toISOString())}</div>
+    <div class="bb-block">
+      <h4>I. Danh sách tổng hợp (${rows.length} nhân viên)</h4>
+      <table class="bb-table">
+        <tr><th>STT</th><th>Mã NV</th><th>Họ tên</th><th>Bộ phận</th><th>Chức vụ</th><th>Số TB</th><th>Đã kiểm kê</th></tr>
+        ${rows.map((r, i) => `
+          <tr>
+            <td>${i + 1}</td>
+            <td>${esc(r.emp.id)}</td>
+            <td>${esc(r.emp.name)}</td>
+            <td>${esc(r.emp.dept || "—")}</td>
+            <td>${esc(r.emp.position || "—")}</td>
+            <td>${r.devices.length}</td>
+            <td></td>
+          </tr>
+        `).join("")}
+      </table>
     </div>
+    <div class="bb-meta-foot">Tổng số nhân viên: ${rows.length} &nbsp;·&nbsp; Tổng số thiết bị đang bàn giao: ${totalDevices} &nbsp;·&nbsp; Ngày lập: ${fmtDate(new Date().toISOString())}</div>
   `;
+}
+
+// Tiêu đề ngắn cho phần chi tiết — chỉ 1 dòng, KHÔNG lặp lại logo/tên công ty
+// (đã có ở đầu báo cáo), để phần chi tiết có thể nối liền ngay bên dưới phần
+// tổng hợp trên cùng 1 trang giấy khi dữ liệu ít, thay vì luôn nhảy trang mới.
+function inventoryDetailSectionTitleHTML() {
+  return `<div class="bb-block bb-detail-title"><h4>II. Chi tiết kiểm kê theo từng nhân viên</h4></div>`;
 }
 
 // Một khối chi tiết cho 1 nhân viên: KHÔNG tự ngắt trang riêng (page-break-inside:
@@ -246,7 +249,11 @@ function employeeDetailBlockHTML(emp, devices) {
         <div class="emp-name">${esc(emp.id)} — ${esc(emp.name)}</div>
         <div class="emp-meta">${esc(emp.dept || "—")}${emp.position ? " · " + esc(emp.position) : ""} · ${devices.length} thiết bị</div>
       </div>
-      <table class="bb-table bb-table-compact">
+      <table class="bb-table bb-table-compact bb-table-fixed">
+        <colgroup>
+          <col style="width:4%"><col style="width:7%"><col style="width:13%"><col style="width:29%">
+          <col style="width:9%"><col style="width:10%"><col style="width:13%"><col style="width:15%">
+        </colgroup>
         <tr>
           <th>STT</th><th>Mã TB</th><th>Loại / Thương hiệu</th><th>Thông số kỹ thuật / Serial</th>
           <th>Ngày cấp phát</th><th>Tình trạng (sổ sách)</th><th>Tình trạng thực tế</th><th>Ghi chú</th>
@@ -274,28 +281,27 @@ function employeeDetailBlockHTML(emp, devices) {
 }
 
 // employees: danh sách nhân viên cần đưa vào báo cáo kiểm kê (vd: theo bộ lọc
-// hiện tại của trang Nhân viên, hoặc toàn bộ). Trang đầu là bảng tổng hợp toàn
-// bộ danh sách; phần sau là chi tiết từng nhân viên để ký xác nhận — các nhân
-// viên được dồn liên tục trong cùng 1 khối trang (.bb-page) và chỉ ngắt trang
-// thực tế khi hết chỗ trống, thay vì ép mỗi người 1 trang riêng như trước đây,
-// tránh in ra nhiều trang gần như trống khi nhân viên chỉ giữ 1-2 thiết bị.
+// hiện tại của trang Nhân viên, hoặc toàn bộ). Toàn bộ báo cáo (tổng hợp + chi
+// tiết từng nhân viên) được gộp trong CÙNG 1 khối trang (.bb-page) duy nhất —
+// không còn ép "tổng hợp = 1 trang riêng, chi tiết = 1 trang riêng" như trước.
+// Nhờ đó khi dữ liệu ít (vd chỉ 1 nhân viên, vài thiết bị) toàn bộ báo cáo vừa
+// gọn trong đúng 1 trang giấy A4; chỉ khi nội dung thực sự dài mới tự nhiên
+// tràn sang trang tiếp theo, và mỗi khối nhân viên (page-break-inside: avoid)
+// không bị cắt dở giữa chừng.
 export function buildInventoryChecklistHTML(employees) {
   const s = state.settings || {};
   const rows = employees.map(emp => ({ emp, devices: state.devices.filter(d => d.holderId === emp.id) }));
   const rowsWithDevices = rows.filter(r => r.devices.length > 0);
 
-  let html = `<div class="bb-report">`;
-  html += inventorySummaryPageHTML(rows, s);
+  let inner = reportHeaderHTML(s);
+  inner += inventorySummaryBlockHTML(rows);
   if (rowsWithDevices.length > 0) {
-    html += `<div class="bb-page">`;
-    html += inventoryDetailHeaderHTML(s);
+    inner += inventoryDetailSectionTitleHTML();
     rowsWithDevices.forEach(row => {
-      html += employeeDetailBlockHTML(row.emp, row.devices);
+      inner += employeeDetailBlockHTML(row.emp, row.devices);
     });
-    html += `</div>`;
   }
-  html += `</div>`;
-  return html;
+  return `<div class="bb-report"><div class="bb-page">${inner}</div></div>`;
 }
 
 export function openInventoryChecklistPreview(employees) {
