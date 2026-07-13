@@ -1,4 +1,4 @@
-import { state } from './db.js';
+import { state, CATEGORY_FIELDS, getCategoryId } from './db.js';
 import { esc, fmtDate, fmtDateVN } from './helpers.js';
 import { toast } from './ui.js';
 
@@ -160,6 +160,33 @@ export function buildReceiptHTML(payload) {
 }
 
 // ---------- Biên bản kiểm kê tài sản theo nhân viên (phục vụ kiểm kê hàng năm) ----------
+
+// Ghép thông số kỹ thuật (specs tự do + các thuộc tính chuyên biệt theo nhóm tài
+// sản, vd CPU/RAM/Ổ cứng/Hệ điều hành...) và số Serial thành 1 dòng dễ đọc, để
+// phiếu kiểm kê không còn "sơ sài" như chỉ có Loại/Thương hiệu.
+function deviceDetailLine(d) {
+  const parts = [];
+  if (d.specs) parts.push(esc(d.specs));
+  const catId = getCategoryId(d.type);
+  const fields = CATEGORY_FIELDS[catId] || [];
+  fields.forEach(f => {
+    if (f.key === "serial") return;
+    const v = d.attrs && d.attrs[f.key];
+    if (v) parts.push(`${esc(f.label)}: ${esc(v)}`);
+  });
+  const serial = d.attrs && d.attrs.serial;
+  if (serial) parts.push(`S/N: ${esc(serial)}`);
+  return parts.length ? parts.join(" · ") : "—";
+}
+
+// Ngày cấp phát gần nhất (bàn giao/điều chuyển) lấy từ lịch sử thiết bị; nếu
+// không có, dùng ngày mua — để người kiểm kê biết thiết bị đã cấp bao lâu.
+function deviceIssuedDate(d) {
+  const h = Array.isArray(d.history) ? d.history.find(x => x.type === "ban_giao" || x.type === "dieu_chuyen") : null;
+  const dateStr = (h && h.date) || d.purchaseDate;
+  return dateStr ? fmtDate(dateStr) : "—";
+}
+
 function inventorySummaryPageHTML(rows, s) {
   const totalDevices = rows.reduce((sum, r) => sum + r.devices.length, 0);
   return `
@@ -175,13 +202,14 @@ function inventorySummaryPageHTML(rows, s) {
       <div class="bb-block">
         <h4>DANH SÁCH TỔNG HỢP (${rows.length} nhân viên)</h4>
         <table class="bb-table">
-          <tr><th>STT</th><th>Mã NV</th><th>Họ tên</th><th>Bộ phận</th><th>Số TB</th><th>Đã kiểm kê</th></tr>
+          <tr><th>STT</th><th>Mã NV</th><th>Họ tên</th><th>Bộ phận</th><th>Chức vụ</th><th>Số TB</th><th>Đã kiểm kê</th></tr>
           ${rows.map((r, i) => `
             <tr>
               <td>${i + 1}</td>
               <td>${esc(r.emp.id)}</td>
               <td>${esc(r.emp.name)}</td>
               <td>${esc(r.emp.dept || "—")}</td>
+              <td>${esc(r.emp.position || "—")}</td>
               <td>${r.devices.length}</td>
               <td></td>
             </tr>
@@ -194,45 +222,50 @@ function inventorySummaryPageHTML(rows, s) {
   `;
 }
 
-function inventoryEmployeePageHTML(emp, devices, s) {
+// Tiêu đề chung cho toàn bộ phần chi tiết — chỉ in 1 lần ở đầu phần chi tiết,
+// KHÔNG lặp lại theo từng nhân viên (khác với bản cũ mỗi nhân viên 1 trang có
+// logo/tiêu đề riêng), để không lãng phí chỗ trống trên giấy.
+function inventoryDetailHeaderHTML(s) {
   return `
-    <div class="bb-page">
-      <div class="bb-head">
-        <img class="bb-logo" src="assets/logo.jpg" alt="Logo">
-        <div class="co">${esc(s.companyName || "Công ty TNHH Jeanic Garment")}</div>
-        ${s.companyAddress ? `<div class="dept">${esc(s.companyAddress)}</div>` : ""}
-        <h1>BIÊN BẢN KIỂM KÊ TÀI SẢN CNTT</h1>
-        <div>${fmtDateVN(new Date().toISOString())}</div>
+    <div class="bb-detail-head">
+      <img class="bb-logo" src="assets/logo.jpg" alt="Logo">
+      <div class="co">${esc(s.companyName || "Công ty TNHH Jeanic Garment")}</div>
+      <h2>Chi tiết kiểm kê tài sản CNTT theo từng nhân viên</h2>
+      <div class="sub-date">Ngày kiểm kê: ${fmtDateVN(new Date().toISOString())}</div>
+    </div>
+  `;
+}
+
+// Một khối chi tiết cho 1 nhân viên: KHÔNG tự ngắt trang riêng (page-break-inside:
+// avoid) nên nhiều nhân viên có thể nằm chung 1 trang giấy nếu còn đủ chỗ; chỉ
+// khi khối tiếp theo không vừa thì trình duyệt/html2pdf mới đẩy sang trang mới.
+function employeeDetailBlockHTML(emp, devices) {
+  return `
+    <div class="bb-emp-block">
+      <div class="bb-emp-block-head">
+        <div class="emp-name">${esc(emp.id)} — ${esc(emp.name)}</div>
+        <div class="emp-meta">${esc(emp.dept || "—")}${emp.position ? " · " + esc(emp.position) : ""} · ${devices.length} thiết bị</div>
       </div>
-
-      <div class="bb-block">
-        <h4>I. THÔNG TIN NHÂN VIÊN</h4>
-        <div class="bb-row"><b>Mã NV:</b> ${esc(emp.id)}</div>
-        <div class="bb-row"><b>Họ tên:</b> ${esc(emp.name)}</div>
-        <div class="bb-row"><b>Bộ phận:</b> ${esc(emp.dept || "—")}</div>
-        ${emp.position ? `<div class="bb-row"><b>Chức vụ:</b> ${esc(emp.position)}</div>` : ""}
-      </div>
-
-      <div class="bb-block">
-        <h4>II. DANH SÁCH THIẾT BỊ ĐANG NẮM GIỮ (${devices.length})</h4>
-        <table class="bb-table">
-          <tr><th>STT</th><th>Mã TB</th><th>Loại / Thương hiệu</th><th>Tình trạng (hệ thống)</th><th>Tình trạng thực tế</th><th>Ghi chú</th></tr>
-          ${devices.map((d, i) => `
-            <tr>
-              <td>${i + 1}</td>
-              <td>${esc(d.id)}</td>
-              <td>${esc(d.type)} — ${esc(d.brand)}</td>
-              <td>${esc(d.condition)}</td>
-              <td></td>
-              <td></td>
-            </tr>
-          `).join("")}
-        </table>
-      </div>
-
-      <div class="bb-terms">Nhân viên xác nhận đã kiểm tra và hiện đang giữ đầy đủ các thiết bị nêu trên, cam kết tiếp tục bảo quản theo đúng quy định của công ty. Mọi sai lệch (thiếu, hỏng, thất lạc) đã được ghi rõ ở cột "Ghi chú".</div>
-
-      <div class="bb-sign">
+      <table class="bb-table bb-table-compact">
+        <tr>
+          <th>STT</th><th>Mã TB</th><th>Loại / Thương hiệu</th><th>Thông số kỹ thuật / Serial</th>
+          <th>Ngày cấp phát</th><th>Tình trạng (sổ sách)</th><th>Tình trạng thực tế</th><th>Ghi chú</th>
+        </tr>
+        ${devices.map((d, i) => `
+          <tr>
+            <td>${i + 1}</td>
+            <td>${esc(d.id)}</td>
+            <td>${esc(d.type)} — ${esc(d.brand)}</td>
+            <td>${deviceDetailLine(d)}</td>
+            <td>${deviceIssuedDate(d)}</td>
+            <td>${esc(d.condition)}</td>
+            <td></td>
+            <td></td>
+          </tr>
+        `).join("")}
+      </table>
+      <div class="bb-emp-note">Nhân viên xác nhận đã kiểm tra và hiện đang giữ đầy đủ các thiết bị nêu trên, cam kết tiếp tục bảo quản theo đúng quy định của công ty. Mọi sai lệch (thiếu, hỏng, thất lạc) đã được ghi rõ ở cột "Ghi chú".</div>
+      <div class="bb-emp-sign">
         <div><div class="cap">Người kiểm kê (IT)</div><div class="sub">(Ký, ghi rõ họ tên)</div></div>
         <div><div class="cap">Người xác nhận (Nhân viên)</div><div class="sub">(Ký, ghi rõ họ tên)</div></div>
       </div>
@@ -241,16 +274,26 @@ function inventoryEmployeePageHTML(emp, devices, s) {
 }
 
 // employees: danh sách nhân viên cần đưa vào báo cáo kiểm kê (vd: theo bộ lọc
-// hiện tại của trang Nhân viên, hoặc toàn bộ). Mỗi nhân viên có thiết bị sẽ có
-// 1 trang riêng để ký xác nhận; trang đầu là bảng tổng hợp toàn bộ danh sách.
+// hiện tại của trang Nhân viên, hoặc toàn bộ). Trang đầu là bảng tổng hợp toàn
+// bộ danh sách; phần sau là chi tiết từng nhân viên để ký xác nhận — các nhân
+// viên được dồn liên tục trong cùng 1 khối trang (.bb-page) và chỉ ngắt trang
+// thực tế khi hết chỗ trống, thay vì ép mỗi người 1 trang riêng như trước đây,
+// tránh in ra nhiều trang gần như trống khi nhân viên chỉ giữ 1-2 thiết bị.
 export function buildInventoryChecklistHTML(employees) {
   const s = state.settings || {};
   const rows = employees.map(emp => ({ emp, devices: state.devices.filter(d => d.holderId === emp.id) }));
+  const rowsWithDevices = rows.filter(r => r.devices.length > 0);
+
   let html = `<div class="bb-report">`;
   html += inventorySummaryPageHTML(rows, s);
-  rows.forEach(row => {
-    if (row.devices.length > 0) html += inventoryEmployeePageHTML(row.emp, row.devices, s);
-  });
+  if (rowsWithDevices.length > 0) {
+    html += `<div class="bb-page">`;
+    html += inventoryDetailHeaderHTML(s);
+    rowsWithDevices.forEach(row => {
+      html += employeeDetailBlockHTML(row.emp, row.devices);
+    });
+    html += `</div>`;
+  }
   html += `</div>`;
   return html;
 }
