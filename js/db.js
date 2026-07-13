@@ -202,6 +202,7 @@ function buildPublicLookupPayload(d) {
     specs: d.specs || "",
     condition: d.condition || "",
     status: d.status || "",
+    holderId: d.holderId || null,
     holderName: d.holderName || null,
     holderDept: d.dept || null,
     updatedAt: new Date().toISOString()

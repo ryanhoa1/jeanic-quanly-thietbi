@@ -490,9 +490,12 @@ table.bb-table-fixed td { word-break: break-word; overflow-wrap: break-word; ver
   justify-content: center;
   break-inside: avoid;
 }
-.label-mini-page .lmp-qr { width: 15mm; height: 15mm; line-height: 0; }
+.label-mini-page .lmp-qr {
+  width: 15mm; height: 15mm; line-height: 0;
+  display: flex; align-items: center; justify-content: center;
+}
 .label-mini-page .lmp-qr img,
-.label-mini-page .lmp-qr canvas { width: 100% !important; height: 100% !important; display: block; }
+.label-mini-page .lmp-qr canvas { width: 100% !important; height: 100% !important; display: block; object-fit: contain; }
 .label-mini-page .lmp-id {
   font-family: 'Courier New', monospace;
   font-weight: bold;
@@ -509,7 +512,12 @@ table.bb-table-fixed td { word-break: break-word; overflow-wrap: break-word; ver
 }
 @media print {
   .label-mini-page { page-break-after: always; }
-  .label-mini-wrap { display: block; }
+  .label-mini-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+  }
 }
 
 /* Bảng thiết bị trong biên bản (xem trước trên màn hình, ngoài @media print) */
