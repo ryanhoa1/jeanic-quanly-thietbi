@@ -365,18 +365,43 @@ export function exportReceiptPDF() {
   const paper = miniLabel || area.querySelector(".bb-report") || area.querySelector(".bb-page, .label-sheet");
   if (!paper || !window.html2pdf) { toast("Không thể xuất PDF (thiếu thư viện html2pdf)", "err"); return; }
   const filename = (area.dataset.pdfName || "bien-ban") + ".pdf";
+
+  // Tem nhỏ 20x20mm: trên màn hình đang được phóng to (transform: scale(6)) để dễ xem trước.
+  // Nếu chụp ảnh để xuất PDF trong lúc đang phóng to, PDF sẽ bị lệch/cắt so với khổ thật 20x20mm.
+  // => Tắt tạm hiệu ứng phóng to trước khi chụp, rồi phục hồi lại sau khi xuất xong.
+  let restoreTransform = null;
+  if (miniLabel) {
+    restoreTransform = miniLabel.style.transform;
+    miniLabel.style.transform = "none";
+  }
+
   const pdfOptions = miniLabel
-    // Tem nhỏ 20x20mm: xuất đúng khổ giấy 20x20mm, không lề, không co giãn theo A4.
+    // Khổ giấy đúng 20x20mm, không lề.
     ? { unit: "mm", format: [20, 20], orientation: "portrait" }
     : { unit: "mm", format: "a4", orientation: "portrait" };
-  window.html2pdf().set({
-    margin: miniLabel ? 0 : 10,
-    filename,
-    image: { type: "jpeg", quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
-    jsPDF: pdfOptions,
-    pagebreak: { mode: ["css", "legacy"] }
-  }).from(paper).save();
+
+  const restoreMiniScale = () => { if (miniLabel) miniLabel.style.transform = restoreTransform || ""; };
+
+  try {
+    const worker = window.html2pdf().set({
+      margin: miniLabel ? 0 : 10,
+      filename,
+      image: { type: "jpeg", quality: 0.98 },
+      // Tem nhỏ được in ở kích thước vật lý rất nhỏ (20mm) nên cần scale chụp cao hơn để mã QR
+      // và mã thiết bị không bị mờ/vỡ nét khi phóng to lúc in thực tế.
+      html2canvas: { scale: miniLabel ? 8 : 2, useCORS: true, backgroundColor: "#ffffff" },
+      jsPDF: pdfOptions,
+      pagebreak: { mode: ["css", "legacy"] }
+    }).from(paper).save();
+    if (worker && typeof worker.then === "function") {
+      worker.then(restoreMiniScale).catch(restoreMiniScale);
+    } else {
+      restoreMiniScale();
+    }
+  } catch (e) {
+    restoreMiniScale();
+    throw e;
+  }
 }
 
 // Trang tra cứu công khai (không cần đăng nhập) — hiển thị ai đang quản lý thiết bị.
