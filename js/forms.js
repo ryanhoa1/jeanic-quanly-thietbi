@@ -51,13 +51,22 @@ export function updateDeviceFormAttrs() {
   wrap.innerHTML = attrFieldsHTML(typeEl.value, null);
 }
 
-// ---------- Device Form (Add / Edit) ----------
-export function openDeviceForm(id, refresh) {
+// ---------- Device Form (Add / Edit / Duplicate) ----------
+// `prefill` is an optional plain object (used when duplicating an existing device) whose
+// fields are used to pre-fill the "Add new" form. When `prefill` is passed, `id` must be null —
+// the record created on submit is always a brand-new device with a new device ID.
+export function openDeviceForm(id, refresh, prefill) {
   const editing = !!id;
-  const d = editing ? state.devices.find(x => x.id === id) : null;
+  const d = editing ? state.devices.find(x => x.id === id) : (prefill || null);
   if (editing && !d) { toast("Không tìm thấy thiết bị", "err"); return; }
+  const duplicating = !editing && !!prefill;
 
   const body = `
+    ${duplicating ? `
+    <div class="attrs-empty" style="margin-bottom:12px; border-color:var(--brand,#4f8cff); color:inherit;">
+      <i class="ph ph-copy"></i> Đang tạo thiết bị mới từ bản sao của <b>${esc(prefill.__sourceId || "")}</b>.
+      Số Serial/IMEI/MAC đã được xoá trống — vui lòng nhập số riêng cho thiết bị này trước khi lưu.
+    </div>` : ""}
     <div class="field-row">
       <div class="field">
         <label>Loại thiết bị</label>
@@ -134,8 +143,43 @@ export function openDeviceForm(id, refresh) {
     <button class="btn btn-brand" onclick="app.submitDeviceForm(${editing ? `'${id}'` : 'null'})"><i class="ph ph-floppy-disk"></i> Lưu</button>
   `;
 
-  openModal(editing ? `Sửa thiết bị — ${esc(id)}` : "Thêm thiết bị mới", body, foot);
+  openModal(
+    editing ? `Sửa thiết bị — ${esc(id)}` : (duplicating ? `Nhân đôi thiết bị — thêm mới từ ${esc(prefill.__sourceId || "")}` : "Thêm thiết bị mới"),
+    body, foot
+  );
   window.__deviceFormRefresh = refresh;
+}
+
+// ---------- Device Duplicate ----------
+// Sao chép toàn bộ thông tin của 1 thiết bị (loại, thương hiệu, thông số, giá mua, NCC, hoá đơn,
+// bảo hành...) sang form "Thêm mới", chỉ cần sửa lại vài chỗ (VD: Số Serial) rồi lưu — rất hữu ích
+// khi có nhiều thiết bị giống hệt nhau (VD: hàng loạt bàn phím/chuột mua cùng 1 đợt).
+export function duplicateDeviceForm(id, refresh) {
+  const src = state.devices.find(x => x.id === id);
+  if (!src) { toast("Không tìm thấy thiết bị", "err"); return; }
+
+  const clearedAttrs = { ...(src.attrs || {}) };
+  ["serial", "imei", "mac"].forEach(k => { if (k in clearedAttrs) clearedAttrs[k] = ""; });
+
+  const prefill = {
+    __sourceId: src.id,
+    type: src.type,
+    brand: src.brand,
+    specs: src.specs,
+    attrs: clearedAttrs,
+    condition: "Mới",
+    importDate: todayISO(),
+    purchaseDate: src.purchaseDate,
+    purchasePrice: src.purchasePrice,
+    vendor: src.vendor,
+    invoiceNo: src.invoiceNo,
+    warrantyMonths: src.warrantyMonths,
+    usefulLifeYears: src.usefulLifeYears,
+    salvageValue: src.salvageValue,
+    note: src.note
+  };
+
+  openDeviceForm(null, refresh, prefill);
 }
 
 export async function submitDeviceForm(id) {

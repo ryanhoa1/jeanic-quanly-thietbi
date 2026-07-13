@@ -20,7 +20,7 @@ import {
 } from './glpi-import.js';
 import { toast, openModal, closeModal } from './ui.js';
 import {
-  openDeviceForm, submitDeviceForm, updateDeviceFormAttrs,
+  openDeviceForm, submitDeviceForm, updateDeviceFormAttrs, duplicateDeviceForm,
   deleteDevice, confirmDeleteDevice,
   openEmployeeForm, submitEmployeeForm,
   deleteEmployee, confirmDeleteEmployee,
@@ -316,6 +316,7 @@ window.app.toast = toast;
 window.app.openDeviceForm = (id) => openDeviceForm(id, refreshCurrentView);
 window.app.submitDeviceForm = (id) => submitDeviceForm(id);
 window.app.updateDeviceFormAttrs = () => updateDeviceFormAttrs();
+window.app.duplicateDeviceForm = (id) => duplicateDeviceForm(id, refreshCurrentView);
 window.app.deleteDevice = (id) => deleteDevice(id, () => {
   // Nếu đang xem trang chi tiết của chính thiết bị vừa xoá, quay về danh sách thay vì hiện trang trống.
   if (state.view === "device" && state.currentId === id) setView("devices");

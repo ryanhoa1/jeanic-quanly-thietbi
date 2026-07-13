@@ -218,6 +218,9 @@ export function renderDevices(filter) {
                 <button class="btn btn-sm btn-ghost" onclick="app.printAssetLabelMini('${d.id}')" title="In tem nhỏ 20×20mm">
                   <i class="ph ph-tag-simple"></i>
                 </button>
+                <button class="btn btn-sm btn-ghost" onclick="app.duplicateDeviceForm('${d.id}')" title="Nhân đôi — tạo thiết bị mới từ thông tin thiết bị này">
+                  <i class="ph ph-copy"></i>
+                </button>
                 <button class="btn btn-sm btn-ghost btn-danger-ghost" onclick="app.deleteDevice('${d.id}')" title="Xoá thiết bị">
                   <i class="ph ph-trash"></i>
                 </button>
@@ -257,6 +260,7 @@ export function renderDeviceDetail(id) {
             <h3><i class="ph ph-laptop"></i> ${esc(d.id)} — ${esc(d.type)}</h3>
             <div style="display:flex; gap:8px;">
               <button class="btn btn-sm btn-ghost" onclick="app.openDeviceForm('${d.id}')"><i class="ph ph-pencil-simple"></i> Sửa</button>
+              <button class="btn btn-sm btn-ghost" onclick="app.duplicateDeviceForm('${d.id}')" title="Tạo thiết bị mới từ thông tin thiết bị này"><i class="ph ph-copy"></i> Nhân đôi</button>
               <button class="btn btn-sm btn-ghost" onclick="app.printAssetLabel('${d.id}')"><i class="ph ph-qr-code"></i> In tem (A4)</button>
               <button class="btn btn-sm btn-ghost" onclick="app.printAssetLabelMini('${d.id}')"><i class="ph ph-tag-simple"></i> In tem 20×20mm</button>
               <button class="btn btn-sm btn-danger" onclick="app.deleteDevice('${d.id}')"><i class="ph ph-trash"></i> Xoá</button>

@@ -361,15 +361,20 @@ export function printReceiptNow() {
 
 export function exportReceiptPDF() {
   const area = document.getElementById("print-area");
-  const paper = area.querySelector(".bb-report") || area.querySelector(".bb-page, .label-sheet");
+  const miniLabel = area.querySelector(".label-mini-page");
+  const paper = miniLabel || area.querySelector(".bb-report") || area.querySelector(".bb-page, .label-sheet");
   if (!paper || !window.html2pdf) { toast("Không thể xuất PDF (thiếu thư viện html2pdf)", "err"); return; }
   const filename = (area.dataset.pdfName || "bien-ban") + ".pdf";
+  const pdfOptions = miniLabel
+    // Tem nhỏ 20x20mm: xuất đúng khổ giấy 20x20mm, không lề, không co giãn theo A4.
+    ? { unit: "mm", format: [20, 20], orientation: "portrait" }
+    : { unit: "mm", format: "a4", orientation: "portrait" };
   window.html2pdf().set({
-    margin: 10,
+    margin: miniLabel ? 0 : 10,
     filename,
     image: { type: "jpeg", quality: 0.98 },
     html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
-    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+    jsPDF: pdfOptions,
     pagebreak: { mode: ["css", "legacy"] }
   }).from(paper).save();
 }

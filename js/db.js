@@ -442,9 +442,21 @@ export function findDuplicateDevice(payload, excludeId) {
   if (invoiceNo && specs) {
     const type = normKey(payload.type);
     const brand = normKey(payload.brand);
+    const payloadHasUniqueId = uniqueAttrKeys.some(k => normKey(attrs[k]));
     for (const d of state.devices) {
       if (excludeId && d.id === excludeId) continue;
       if (normKey(d.invoiceNo) === invoiceNo && normKey(d.specs) === specs && normKey(d.type) === type && normKey(d.brand) === brand) {
+        // Nếu thiết bị mới có Serial/IMEI/MAC riêng (khác với thiết bị đang so sánh), đây là
+        // một đơn vị hợp lệ mua cùng đợt (VD: nhiều bàn phím/chuột giống hệt cùng 1 hoá đơn),
+        // không phải nhập trùng — bỏ qua thiết bị này và tiếp tục kiểm tra các thiết bị khác.
+        if (payloadHasUniqueId) {
+          const distinguishable = uniqueAttrKeys.some(k => {
+            const pv = normKey(attrs[k]);
+            const dv = normKey(d.attrs && d.attrs[k]);
+            return pv && dv && pv !== dv;
+          });
+          if (distinguishable) continue;
+        }
         return { record: d, field: "invoice", message: `Thiết bị với Số hoá đơn "${payload.invoiceNo}" và thông số kỹ thuật giống hệt đã tồn tại (mã ${d.id}). Có thể bạn đã nhập trùng.` };
       }
     }

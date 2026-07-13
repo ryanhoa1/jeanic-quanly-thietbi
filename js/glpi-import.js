@@ -78,8 +78,31 @@ const KEYWORD_TYPE_RULES = [
   [/router|switch|access point|wifi|wi-fi/i, "Router/Switch"],
   [/laptop|notebook/i, "Laptop"],
   [/mini pc|optiplex|expertcenter|\bnuc\b|all-in-one/i, "Desktop"],
-  [/điện thoại|smartphone|\biphone\b/i, "Điện thoại"]
+  // Điện thoại bàn/IP Phone: GLPI thường để trống cột Type cho nhóm này, nên
+  // phải nhận diện qua tên hãng sản xuất phổ biến ghi trong Name/Model.
+  [/điện thoại|smartphone|\biphone\b|ip\s*phone|desk\s*phone|voip|sip[-\s]?t\d|grandstream|yealink|\bcisco\b|panasonic|polycom|fanvil|\bavaya\b/i, "Điện thoại"]
 ];
+
+// Khi GLPI để trống cột Manufacturer (thường gặp với điện thoại bàn/IP Phone
+// nhập thủ công), thử dò thương hiệu qua từ khoá xuất hiện trong Name/Model
+// trước khi đành chấp nhận "Khác".
+const BRAND_KEYWORDS = [
+  ["dell", "Dell"], ["hp", "HP"], ["lenovo", "Lenovo"], ["asus", "Asus"], ["acer", "Acer"],
+  ["apple", "Apple"], ["logitech", "Logitech"], ["samsung", "Samsung"], ["lg", "LG"],
+  ["canon", "Canon"], ["tp-link", "TP-Link"], ["tplink", "TP-Link"], ["hikvision", "HIKVision"],
+  ["kingston", "Kingston"], ["xiaomi", "Xiaomi"],
+  ["grandstream", "Grandstream"], ["yealink", "Yealink"], ["cisco", "Cisco"],
+  ["panasonic", "Panasonic"], ["polycom", "Polycom"], ["fanvil", "Fanvil"], ["avaya", "Avaya"]
+];
+
+function inferBrand(manufacturer, name, model) {
+  if (manufacturer) return manufacturer;
+  const text = normalizeVN(`${name || ""} ${model || ""}`);
+  for (const [kw, label] of BRAND_KEYWORDS) {
+    if (text.includes(kw)) return label;
+  }
+  return "Khác";
+}
 
 function mapGlpiType(rawType, kind, extraText) {
   const t = String(rawType || "").trim().toLowerCase();
@@ -88,8 +111,14 @@ function mapGlpiType(rawType, kind, extraText) {
   for (const [re, type] of KEYWORD_TYPE_RULES) {
     if (re.test(text)) return type;
   }
+  // "computers" là export riêng cho máy tính nên mặc định Desktop là hợp lý
+  // khi bỏ trống Type. Nhưng "monitors_or_peripherals" gộp chung rất nhiều
+  // loại phụ kiện khác nhau (màn hình, điện thoại, bàn phím, chuột...), nên
+  // KHÔNG được đoán bừa thành "Màn hình" — trước đây điều này khiến điện
+  // thoại bàn (Type để trống) bị gán nhầm thành Màn hình và biến mất khỏi
+  // mục Điện thoại. Khi không dò được, để "Khác" để người dùng còn thấy và
+  // tự sửa lại loại cho đúng trong bảng xem trước hoặc sau khi nhập.
   if (kind === "computers") return "Desktop";
-  if (kind === "monitors_or_peripherals") return "Màn hình";
   return "Khác";
 }
 
@@ -183,7 +212,8 @@ function buildGlpiImportReport(rawRows, headers) {
 
     const type = mapGlpiType(rawType, kind, `${name} ${model}`);
     const catId = getCategoryId(type);
-    const specs = [manufacturer, model].filter(Boolean).join(" ").trim();
+    const brand = inferBrand(manufacturer, name, model);
+    const specs = [manufacturer || brand, model].filter(Boolean).join(" ").trim();
 
     const attrs = {};
     const fieldKeys = new Set((CATEGORY_FIELDS[catId] || []).map(f => f.key));
@@ -208,7 +238,7 @@ function buildGlpiImportReport(rawRows, headers) {
     else if (existingByGlpiName.has(name.toUpperCase())) existing = existingByGlpiName.get(name.toUpperCase());
 
     const data = {
-      glpiName: name, type, catId, brand: manufacturer || "Khác", specs, attrs,
+      glpiName: name, type, catId, brand, specs, attrs,
       condition: existing ? existing.condition : "Tốt", status,
       holderId: holder ? holder.id : null, holderName: holder ? holder.name : null, dept: holder ? holder.dept : null,
       importDate: existing ? existing.importDate : todayISO(),
