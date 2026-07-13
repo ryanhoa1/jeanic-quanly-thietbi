@@ -15,6 +15,9 @@ import {
   downloadDeviceImportTemplate, triggerImportFilePicker, handleImportFileSelected, confirmDeviceImport,
   downloadEmployeeImportTemplate, triggerEmployeeImportFilePicker, handleEmployeeImportFileSelected, confirmEmployeeImport
 } from './import.js';
+import {
+  triggerGlpiImportFilePicker, handleGlpiImportFileSelected, confirmGlpiImport, setGlpiImportHolder
+} from './glpi-import.js';
 import { toast, openModal, closeModal } from './ui.js';
 import {
   openDeviceForm, submitDeviceForm, updateDeviceFormAttrs,
@@ -271,6 +274,10 @@ window.app.downloadDeviceImportTemplate = downloadDeviceImportTemplate;
 window.app.triggerImportFilePicker = triggerImportFilePicker;
 window.app.handleImportFileSelected = handleImportFileSelected;
 window.app.confirmDeviceImport = confirmDeviceImport;
+window.app.triggerGlpiImportFilePicker = triggerGlpiImportFilePicker;
+window.app.handleGlpiImportFileSelected = handleGlpiImportFileSelected;
+window.app.confirmGlpiImport = confirmGlpiImport;
+window.app.setGlpiImportHolder = setGlpiImportHolder;
 window.app.exportDevicesForCategory = (catId) => {
   const label = catId && catId !== "all" ? getCategoryMeta(catId)?.label : null;
   exportDevicesExcel(devicesInCategory(catId), label);

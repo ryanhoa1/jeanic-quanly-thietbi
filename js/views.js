@@ -176,6 +176,9 @@ export function renderDevices(filter) {
       <button class="btn btn-brand" onclick="app.triggerImportFilePicker('${activeCat}')" title="Nhập nhiều thiết bị cùng lúc từ file Excel">
         <i class="ph ph-file-arrow-up"></i> Nhập Excel
       </button>
+      <button class="btn btn-ghost" onclick="app.triggerGlpiImportFilePicker()" title="Đồng bộ thiết bị từ file Excel xuất ra từ GLPI (Computers/Monitors/Peripherals...)">
+        <i class="ph ph-arrows-clockwise"></i> Đồng bộ GLPI
+      </button>
     </div>
     
     <div class="panel">
@@ -724,6 +727,25 @@ export function renderReports() {
         </button>
         <button class="btn btn-brand" onclick="app.triggerImportFilePicker()">
           <i class="ph ph-file-arrow-up"></i> 2. Chọn file đã điền để nhập
+        </button>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:24px;">
+      <div class="panel-head">
+        <h3><i class="ph ph-arrows-clockwise"></i> Đồng bộ thiết bị từ GLPI</h3>
+      </div>
+      <p style="color:var(--text-secondary); font-size:13.5px; margin-bottom:16px;">
+        Dùng cho GLPI triển khai nội bộ: trong GLPI vào <b>Assets → Computers / Monitors / Peripherals / Printers...</b>,
+        chọn các thiết bị cần lấy rồi <b>Export → Export to file (xlsx)</b> (nên chọn thêm cột Manufacturer, Model,
+        Serial number, Operating System - Name, Components - Processor, Alternate username nếu có). Sau đó tải file .xlsx
+        đó lên đây — hệ thống sẽ tự nhận diện loại thiết bị (Desktop/Laptop/Màn hình/Bàn phím/Chuột...), tự dò người
+        đang giữ theo email, và cho xem trước để bạn chỉnh lại người giữ trước khi ghi vào hệ thống. Chạy lại nhiều lần
+        với file mới sẽ tự <b>cập nhật</b> thiết bị đã có (theo Serial number) thay vì tạo trùng.
+      </p>
+      <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        <button class="btn btn-brand" onclick="app.triggerGlpiImportFilePicker()">
+          <i class="ph ph-file-arrow-up"></i> Chọn file export từ GLPI
         </button>
       </div>
     </div>
