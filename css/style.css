@@ -386,6 +386,7 @@ table.data tr.rowclick:hover td { background: rgba(255,255,255,0.02); }
 #print-area.preview-open .label-sheet {
   box-shadow: 0 20px 60px rgba(0,0,0,0.5);
   border-radius: 6px;
+  margin-bottom: 24px;
 }
 
 .print-toolbar { background: var(--bg-surface); padding: 16px; display: flex; gap: 12px; justify-content: center; position: sticky; top: 0; z-index: 9999; border-bottom: 1px solid var(--border-color); box-shadow: var(--shadow-md); }
@@ -409,6 +410,10 @@ table.data tr.rowclick:hover td { background: rgba(255,255,255,0.02); }
 
 /* Printing elements layout (simulating the previous print styles) */
 .bb-page { font-family: 'Times New Roman', serif; color: #000; background: #fff; padding: 30px 40px; margin: 0 auto; max-width: 800px; }
+/* Nhiều trang .bb-page liên tiếp (vd: báo cáo kiểm kê nhiều nhân viên) — ngắt
+   trang giữa các trang, trừ trang cuối. Đặt ngoài @media print để cả khi in
+   trực tiếp lẫn khi xuất PDF (html2pdf) đều nhận diện được. */
+.bb-page:not(:last-child) { page-break-after: always; }
 .bb-head { text-align: center; margin-bottom: 24px; }
 .bb-head .bb-logo { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; margin-bottom: 8px; }
 .bb-head .co { font-weight: bold; font-size: 16px; text-transform: uppercase; }

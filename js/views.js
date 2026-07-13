@@ -347,13 +347,17 @@ export function renderDeviceDetail(id) {
 }
 
 // ---------- Employees ----------
-export function renderEmployees(filter) {
+export function filterEmployeesList(filter) {
   const q = (filter.q || "").toLowerCase();
-  const list = state.employees.filter(e => {
+  return state.employees.filter(e => {
     if (filter.dept && filter.dept !== "all" && e.dept !== filter.dept) return false;
     if (q && !(`${e.id} ${e.name} ${e.email || ""} ${e.position || ""}`.toLowerCase().includes(q))) return false;
     return true;
   });
+}
+
+export function renderEmployees(filter) {
+  const list = filterEmployeesList(filter);
 
   let html = `
     <div class="toolbar">
@@ -373,6 +377,9 @@ export function renderEmployees(filter) {
       </button>
       <button class="btn btn-brand" onclick="app.triggerEmployeeImportFilePicker()" title="Nhập nhiều nhân viên cùng lúc từ file Excel">
         <i class="ph ph-file-arrow-up"></i> Nhập Excel
+      </button>
+      <button class="btn btn-ghost" onclick="app.printInventoryChecklist()" title="In danh sách tài sản từng nhân viên đang giữ, phục vụ kiểm kê hàng năm">
+        <i class="ph ph-printer"></i> In kiểm kê
       </button>
     </div>
     <div class="panel">

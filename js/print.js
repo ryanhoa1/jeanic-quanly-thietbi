@@ -159,6 +159,122 @@ export function buildReceiptHTML(payload) {
   `;
 }
 
+// ---------- Biên bản kiểm kê tài sản theo nhân viên (phục vụ kiểm kê hàng năm) ----------
+function inventorySummaryPageHTML(rows, s) {
+  const totalDevices = rows.reduce((sum, r) => sum + r.devices.length, 0);
+  return `
+    <div class="bb-page">
+      <div class="bb-head">
+        <img class="bb-logo" src="assets/logo.jpg" alt="Logo">
+        <div class="co">${esc(s.companyName || "Công ty TNHH Jeanic Garment")}</div>
+        ${s.companyAddress ? `<div class="dept">${esc(s.companyAddress)}</div>` : ""}
+        <h1>DANH SÁCH KIỂM KÊ TÀI SẢN CNTT THEO NHÂN VIÊN</h1>
+        <div>${fmtDateVN(new Date().toISOString())}</div>
+      </div>
+
+      <div class="bb-block">
+        <h4>DANH SÁCH TỔNG HỢP (${rows.length} nhân viên)</h4>
+        <table class="bb-table">
+          <tr><th>STT</th><th>Mã NV</th><th>Họ tên</th><th>Bộ phận</th><th>Số TB</th><th>Đã kiểm kê</th></tr>
+          ${rows.map((r, i) => `
+            <tr>
+              <td>${i + 1}</td>
+              <td>${esc(r.emp.id)}</td>
+              <td>${esc(r.emp.name)}</td>
+              <td>${esc(r.emp.dept || "—")}</td>
+              <td>${r.devices.length}</td>
+              <td></td>
+            </tr>
+          `).join("")}
+        </table>
+      </div>
+
+      <div class="bb-meta-foot">Tổng số nhân viên: ${rows.length} &nbsp;·&nbsp; Tổng số thiết bị đang bàn giao: ${totalDevices} &nbsp;·&nbsp; Ngày lập: ${fmtDate(new Date().toISOString())}</div>
+    </div>
+  `;
+}
+
+function inventoryEmployeePageHTML(emp, devices, s) {
+  return `
+    <div class="bb-page">
+      <div class="bb-head">
+        <img class="bb-logo" src="assets/logo.jpg" alt="Logo">
+        <div class="co">${esc(s.companyName || "Công ty TNHH Jeanic Garment")}</div>
+        ${s.companyAddress ? `<div class="dept">${esc(s.companyAddress)}</div>` : ""}
+        <h1>BIÊN BẢN KIỂM KÊ TÀI SẢN CNTT</h1>
+        <div>${fmtDateVN(new Date().toISOString())}</div>
+      </div>
+
+      <div class="bb-block">
+        <h4>I. THÔNG TIN NHÂN VIÊN</h4>
+        <div class="bb-row"><b>Mã NV:</b> ${esc(emp.id)}</div>
+        <div class="bb-row"><b>Họ tên:</b> ${esc(emp.name)}</div>
+        <div class="bb-row"><b>Bộ phận:</b> ${esc(emp.dept || "—")}</div>
+        ${emp.position ? `<div class="bb-row"><b>Chức vụ:</b> ${esc(emp.position)}</div>` : ""}
+      </div>
+
+      <div class="bb-block">
+        <h4>II. DANH SÁCH THIẾT BỊ ĐANG NẮM GIỮ (${devices.length})</h4>
+        <table class="bb-table">
+          <tr><th>STT</th><th>Mã TB</th><th>Loại / Thương hiệu</th><th>Tình trạng (hệ thống)</th><th>Tình trạng thực tế</th><th>Ghi chú</th></tr>
+          ${devices.map((d, i) => `
+            <tr>
+              <td>${i + 1}</td>
+              <td>${esc(d.id)}</td>
+              <td>${esc(d.type)} — ${esc(d.brand)}</td>
+              <td>${esc(d.condition)}</td>
+              <td></td>
+              <td></td>
+            </tr>
+          `).join("")}
+        </table>
+      </div>
+
+      <div class="bb-terms">Nhân viên xác nhận đã kiểm tra và hiện đang giữ đầy đủ các thiết bị nêu trên, cam kết tiếp tục bảo quản theo đúng quy định của công ty. Mọi sai lệch (thiếu, hỏng, thất lạc) đã được ghi rõ ở cột "Ghi chú".</div>
+
+      <div class="bb-sign">
+        <div><div class="cap">Người kiểm kê (IT)</div><div class="sub">(Ký, ghi rõ họ tên)</div></div>
+        <div><div class="cap">Người xác nhận (Nhân viên)</div><div class="sub">(Ký, ghi rõ họ tên)</div></div>
+      </div>
+    </div>
+  `;
+}
+
+// employees: danh sách nhân viên cần đưa vào báo cáo kiểm kê (vd: theo bộ lọc
+// hiện tại của trang Nhân viên, hoặc toàn bộ). Mỗi nhân viên có thiết bị sẽ có
+// 1 trang riêng để ký xác nhận; trang đầu là bảng tổng hợp toàn bộ danh sách.
+export function buildInventoryChecklistHTML(employees) {
+  const s = state.settings || {};
+  const rows = employees.map(emp => ({ emp, devices: state.devices.filter(d => d.holderId === emp.id) }));
+  let html = `<div class="bb-report">`;
+  html += inventorySummaryPageHTML(rows, s);
+  rows.forEach(row => {
+    if (row.devices.length > 0) html += inventoryEmployeePageHTML(row.emp, row.devices, s);
+  });
+  html += `</div>`;
+  return html;
+}
+
+export function openInventoryChecklistPreview(employees) {
+  if (!employees || employees.length === 0) {
+    toast("Không có nhân viên nào để in kiểm kê (kiểm tra lại bộ lọc)", "err");
+    return;
+  }
+  const area = document.getElementById("print-area");
+  const html = buildInventoryChecklistHTML(employees);
+  const dateStamp = new Date().toISOString().slice(0, 10);
+  area.dataset.pdfName = `kiem-ke-tai-san-${dateStamp}`;
+  area.innerHTML = `
+    <div class="print-toolbar">
+      <button class="btn btn-ghost" onclick="app.closeReceiptPreview()"><i class="ph ph-x"></i> Đóng</button>
+      <button class="btn btn-brand" onclick="app.printReceiptNow()"><i class="ph ph-printer"></i> In tất cả (${employees.length} nhân viên)</button>
+      <button class="btn btn-brand" onclick="app.exportReceiptPDF()"><i class="ph ph-file-pdf"></i> Xuất PDF</button>
+    </div>
+    ${html}
+  `;
+  ensurePaperVisible();
+}
+
 function ensurePaperVisible() {
   const area = document.getElementById("print-area");
   area.classList.add("preview-open");
@@ -196,7 +312,7 @@ export function printReceiptNow() {
 
 export function exportReceiptPDF() {
   const area = document.getElementById("print-area");
-  const paper = area.querySelector(".bb-page, .label-sheet");
+  const paper = area.querySelector(".bb-report") || area.querySelector(".bb-page, .label-sheet");
   if (!paper || !window.html2pdf) { toast("Không thể xuất PDF (thiếu thư viện html2pdf)", "err"); return; }
   const filename = (area.dataset.pdfName || "bien-ban") + ".pdf";
   window.html2pdf().set({
@@ -204,7 +320,8 @@ export function exportReceiptPDF() {
     filename,
     image: { type: "jpeg", quality: 0.98 },
     html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
-    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
+    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+    pagebreak: { mode: ["css", "legacy"] }
   }).from(paper).save();
 }
 

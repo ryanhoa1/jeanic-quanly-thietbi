@@ -9,7 +9,7 @@ import { loadAll, state, persistSettings, ASSET_CATEGORIES, ASSET_GROUPS, getCat
 import {
   renderDashboard, renderDevices, renderDeviceDetail,
   renderEmployees, renderEmployeeDetail, renderOps, renderReports, renderHistoryTable, renderSettings, renderAccountsTable,
-  renderMyDevices, renderMyAccount
+  renderMyDevices, renderMyAccount, filterEmployeesList
 } from './views.js';
 import {
   downloadDeviceImportTemplate, triggerImportFilePicker, handleImportFileSelected, confirmDeviceImport,
@@ -27,7 +27,7 @@ import {
 } from './forms.js';
 import {
   printAssetLabel, printAssetLabelMini, openReceiptPreview, closeReceiptPreview,
-  printReceiptNow, exportReceiptPDF
+  printReceiptNow, exportReceiptPDF, openInventoryChecklistPreview
 } from './print.js';
 import {
   exportDevicesExcel, exportEmployeesExcel, exportHistoryExcel,
@@ -276,6 +276,10 @@ window.app.exportDevicesForCategory = (catId) => {
   exportDevicesExcel(devicesInCategory(catId), label);
 };
 window.app.downloadEmployeeImportTemplate = downloadEmployeeImportTemplate;
+window.app.printInventoryChecklist = () => {
+  const list = filterEmployeesList(employeeFilter);
+  openInventoryChecklistPreview(list);
+};
 window.app.resyncHolderNames = async () => {
   const result = resyncHolderNamesFromEmployees();
   if (result.devicesTouched > 0) {
