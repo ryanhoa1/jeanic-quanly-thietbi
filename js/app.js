@@ -280,6 +280,10 @@ window.app.printInventoryChecklist = () => {
   const list = filterEmployeesList(employeeFilter);
   openInventoryChecklistPreview(list);
 };
+window.app.printInventoryChecklistFor = (id) => {
+  const emp = state.employees.find(x => x.id === id);
+  openInventoryChecklistPreview(emp ? [emp] : []);
+};
 window.app.resyncHolderNames = async () => {
   const result = resyncHolderNamesFromEmployees();
   if (result.devicesTouched > 0) {

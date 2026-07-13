@@ -573,6 +573,7 @@ export function renderEmployeeDetail(id) {
           <div class="panel-head">
             <h3><i class="ph ph-user"></i> ${esc(e.name)}</h3>
             <div style="display:flex; gap:8px;">
+              <button class="btn btn-sm btn-ghost" onclick="app.printInventoryChecklistFor('${e.id}')"><i class="ph ph-printer"></i> In kiểm kê</button>
               <button class="btn btn-sm btn-ghost" onclick="app.openEmployeeForm('${e.id}')"><i class="ph ph-pencil-simple"></i> Sửa</button>
               <button class="btn btn-sm btn-danger" onclick="app.deleteEmployee('${e.id}')"><i class="ph ph-trash"></i> Xoá</button>
             </div>
